@@ -37,3 +37,17 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - `package.json` `dev`/`build` scripts are stubs ("Do not use this command"). Use `vite build` directly.
 - tsconfig uses `@typescript/native-preview` (tsgo). `npx tsc` may not be the checker; use `tsgo`.
 - index.html had `lang="zh-CN"` — fixed to `en`.
+
+## Current State (2026-08-11)
+- Rebranded + new features built, verified end-to-end against live Supabase, and pushed to `bellinzoneacredit.com` main (commit b2b6415).
+- Verified live (REST + browser UI): login (user+admin), deposit ($50), withdrawal ($40), admin add-balance ($100 + $250), transactions visible to both user and admin.
+- Migration `00005_rebrand_and_card_requests.sql` written but **NOT APPLIED** to live DB (needs service_role key). Debit card *ordering* returns 404 until applied; the page UI + admin approval UI work and degrade gracefully.
+- Build clean (`vite build`), `tsgo` + `biome lint` pass.
+
+## Deployment Blockers (need user credentials)
+1. **Supabase service_role key** — to apply migration 00005 (creates `card_requests` table + RLS). Apply via Supabase Dashboard → SQL Editor, or `supabase db push` with DB access.
+2. **Railway token** — to deploy (CLI not installed in env). Repo is Railway-ready (Dockerfile + nixpacks.toml); set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` as Railway env vars.
+
+## Test Credentials (live Supabase)
+- Admin: `admin@skybordbank.com` / PIN `1234`
+- User: `milljohnson75@gmail.com` / PIN `2356` (account SKB3870327296)
