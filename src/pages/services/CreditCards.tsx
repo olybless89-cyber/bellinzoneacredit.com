@@ -6,9 +6,9 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 
 const CARDS = [
-  { name: 'Skyboard Classic', tier: 'Standard', color: 'from-gray-600 to-gray-900', features: ['1% cashback all purchases', 'Zero annual fee', 'Contactless payments', '24/7 fraud monitoring'] },
-  { name: 'Skyboard Prestige', tier: 'Premium', color: 'from-primary to-[#0a1c50]', features: ['4% dining cashback', '3% travel cashback', '2% grocery cashback', 'Airport lounge access', 'Concierge service'], featured: true },
-  { name: 'Skyboard Infinite', tier: 'Luxury', color: 'from-[#1a1a2e] to-[#000]', features: ['Unlimited cash back', 'No foreign transaction fees', 'Global Priority Pass', 'Personal financial advisor', 'Metal card'] },
+  { name: 'Bellinzone Classic', tier: 'Standard', color: 'from-gray-600 to-gray-900', features: ['1% cashback all purchases', 'Zero annual fee', 'Contactless payments', '24/7 fraud monitoring'] },
+  { name: 'Bellinzone Prestige', tier: 'Premium', color: 'from-primary to-[#0a1c50]', features: ['4% dining cashback', '3% travel cashback', '2% grocery cashback', 'Airport lounge access', 'Concierge service'], featured: true },
+  { name: 'Bellinzone Infinite', tier: 'Luxury', color: 'from-[#1a1a2e] to-[#000]', features: ['Unlimited cash back', 'No foreign transaction fees', 'Global Priority Pass', 'Personal financial advisor', 'Metal card'] },
 ];
 
 const MATERIALS = ['Standard PVC', 'Metal Titanium', 'Carbon Fiber', 'Recycled Ocean Plastic'];
@@ -98,7 +98,7 @@ export default function CreditCardsPage() {
               <div className="mt-6">
                 <div className="bg-gradient-to-br from-primary to-[#0a1c50] rounded-2xl p-6 teal-glow">
                   <div className="flex justify-between mb-6">
-                    <span className="text-white/60 text-xs">Skyboard Prestige</span>
+                    <span className="text-white/60 text-xs">Bellinzone Prestige</span>
                     <span className="text-white/60 text-xs">{material}</span>
                   </div>
                   <div className="text-white font-mono text-sm mb-4">•••• •••• •••• 4521</div>
