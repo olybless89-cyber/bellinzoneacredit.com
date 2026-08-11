@@ -47,7 +47,7 @@ export default function ContactPage() {
                   {[
                     { icon: MapPin, label: 'London Office', value: 'Skyboard Plaza, Westminster, SW1A 1AA, United Kingdom' },
                     { icon: Phone, label: 'Phone Number', value: '+8801682648101' },
-                    { icon: Mail, label: 'Email Address', value: 'support@skybordbank.com' },
+                    { icon: Mail, label: 'Email Address', value: 'support@bellinzoneacredit.com' },
                     { icon: Clock, label: 'Business Hours', value: 'Mon – Fri: 09:00 – 17:00\nSat: 09:00 – 13:00' },
                   ].map(({ icon: Icon, label, value }) => (
                     <div key={label} className="flex items-start gap-4">

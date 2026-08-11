@@ -1,15 +1,15 @@
 /* stylelint-disable */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
     --radius: 0.75rem;
 
-    /* SKY-BORD BANK – Premium Blue & White Institutional Theme */
+    /* Bellinzone A Credit – Premium Blue & White Institutional Theme */
     --background: 210 33% 98%;
     --foreground: 222 60% 10%;
 

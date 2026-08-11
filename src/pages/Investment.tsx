@@ -88,7 +88,7 @@ export default function InvestmentPage() {
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-extrabold text-foreground mb-4">Why Invest With SKY-BORD?</h2>
+            <h2 className="text-3xl font-extrabold text-foreground mb-4">Why Invest With Bellinzone?</h2>
           </div>
           <div className="grid md:grid-cols-4 gap-6">
             {[

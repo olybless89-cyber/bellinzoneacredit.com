@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ArrowLeftRight, History, User,
   Building2, LogOut, Menu, Settings, TrendingUp, Shield,
+  Wallet, CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -11,8 +12,10 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Transactions', href: '/dashboard/transactions', icon: History },
+  { label: 'Deposit & Withdraw', href: '/dashboard/money', icon: Wallet },
   { label: 'Transfer', href: '/dashboard/transfer', icon: ArrowLeftRight },
+  { label: 'Debit Card', href: '/dashboard/debit-card', icon: CreditCard },
+  { label: 'Transactions', href: '/dashboard/transactions', icon: History },
   { label: 'Investments', href: '/dashboard/investments', icon: TrendingUp },
   { label: 'Profile', href: '/dashboard/profile', icon: User },
 ];
@@ -35,7 +38,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Building2 className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span><span className="text-primary">SKY-BORD</span> BANK</span>
+          <span><span className="text-primary">Bellinzone</span> BANK</span>
         </Link>
       </div>
 
@@ -129,7 +132,7 @@ export default function DashboardLayout() {
           <Button variant="ghost" size="sm" onClick={() => setMobileOpen(true)}>
             <Menu className="w-5 h-5" />
           </Button>
-          <span className="font-semibold text-sm"><span className="text-primary">SKY-BORD</span> BANK</span>
+          <span className="font-semibold text-sm"><span className="text-primary">Bellinzone</span> BANK</span>
           <div className="w-9" />
         </header>
         <main className="flex-1 overflow-x-hidden p-4 md:p-8">

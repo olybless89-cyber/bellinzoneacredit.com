@@ -31,6 +31,8 @@ import CreditCardsPage from '@/pages/services/CreditCards';
 import DashboardOverview from '@/pages/dashboard/Overview';
 import TransactionsPage from '@/pages/dashboard/Transactions';
 import TransferPage from '@/pages/dashboard/Transfer';
+import MoneyPage from '@/pages/dashboard/Money';
+import DebitCardPage from '@/pages/dashboard/DebitCard';
 import InvestmentsPage from '@/pages/dashboard/Investments';
 import ProfilePage from '@/pages/dashboard/Profile';
 
@@ -40,6 +42,7 @@ import AdminOverview from '@/pages/admin/AdminOverview';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminKYC from '@/pages/admin/AdminKYC';
 import AdminTransactions from '@/pages/admin/AdminTransactions';
+import AdminCardRequests from '@/pages/admin/AdminCardRequests';
 
 // 404
 import NotFound from '@/pages/NotFound';
@@ -76,6 +79,8 @@ const App: React.FC = () => {
               <Route index element={<DashboardOverview />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="transfer" element={<TransferPage />} />
+              <Route path="money" element={<MoneyPage />} />
+              <Route path="debit-card" element={<DebitCardPage />} />
               <Route path="investments" element={<InvestmentsPage />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
@@ -86,6 +91,7 @@ const App: React.FC = () => {
               <Route path="users" element={<AdminUsers />} />
               <Route path="kyc" element={<AdminKYC />} />
               <Route path="transactions" element={<AdminTransactions />} />
+              <Route path="card-requests" element={<AdminCardRequests />} />
             </Route>
 
             <Route path="/404" element={<NotFound />} />

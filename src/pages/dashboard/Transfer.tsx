@@ -112,7 +112,7 @@ export default function TransferPage() {
           {/* To */}
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Recipient Account Number</label>
-            <Input placeholder="e.g. SKB0012345678" value={toAccount} onChange={(e) => setToAccount(e.target.value)} className="bg-white border-border shadow-sm h-12" required />
+            <Input placeholder="e.g. BZC0012345678" value={toAccount} onChange={(e) => setToAccount(e.target.value)} className="bg-white border-border shadow-sm h-12" required />
           </div>
 
           {/* Amount */}

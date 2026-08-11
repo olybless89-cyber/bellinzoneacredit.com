@@ -1,4 +1,4 @@
-# SKY-BORD BANK
+# Bellinzone A Credit
 
 A premium digital banking platform built with React + Vite + TypeScript + Tailwind CSS + Supabase.
 
@@ -12,8 +12,11 @@ Deployed on Railway — see the Railway dashboard for the public URL.
 
 ## Features
 - 🏦 Full banking UI: accounts, transactions, investments, transfers
+- 💵 Deposit & Withdraw funds (user) with balance guards
+- 💳 Debit card ordering (user requests, admin approves/rejects)
+- ⚙️ Admin portal: overview, users, KYC queue, transactions, card requests, **add balance to users**
 - 🔐 Username + PIN authentication (Supabase Auth)
-- 📊 Dashboard: overview, transactions, investments, profile
+- 📊 Dashboard: overview, deposit/withdraw, transfer, debit card, transactions, investments, profile
 - 🌐 Public pages: home, all service pages, contact, investment plans
 - 📱 Responsive layout with mobile sheet navigation
 

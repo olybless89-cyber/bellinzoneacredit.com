@@ -1,5 +1,5 @@
 import { supabase } from '@/db/supabase';
-import type { BankAccount, Transaction, Investment, Profile } from '@/types';
+import type { BankAccount, Transaction, Investment, Profile, CardRequest } from '@/types';
 
 // ─── Profiles ───────────────────────────────────────────────────────────────
 
@@ -176,6 +176,117 @@ export async function transferFunds(payload: {
   return { success: true };
 }
 
+// ─── Deposit (user funds own account) ─────────────────────────────────────────
+
+export async function depositFunds(payload: {
+  accountId: string;
+  amount: number;
+  description?: string;
+}) {
+  const { accountId, amount, description } = payload;
+  if (amount <= 0) throw new Error('Amount must be greater than zero');
+
+  const { data: account, error: accErr } = await supabase
+    .from('bank_accounts')
+    .select('balance, currency')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (accErr || !account) throw new Error('Account not found');
+
+  const { error: balErr } = await supabase
+    .from('bank_accounts')
+    .update({ balance: account.balance + amount })
+    .eq('id', accountId);
+  if (balErr) throw balErr;
+
+  const { error: txErr } = await supabase.from('transactions').insert({
+    account_id: accountId,
+    type: 'deposit',
+    status: 'completed',
+    amount,
+    currency: account.currency,
+    description: description || 'Deposit',
+  });
+  if (txErr) throw txErr;
+
+  return { success: true };
+}
+
+// ─── Withdrawal (user debits own account) ─────────────────────────────────────
+
+export async function withdrawFunds(payload: {
+  accountId: string;
+  amount: number;
+  description?: string;
+  recipient_account?: string;
+}) {
+  const { accountId, amount, description, recipient_account } = payload;
+  if (amount <= 0) throw new Error('Amount must be greater than zero');
+
+  const { data: account, error: accErr } = await supabase
+    .from('bank_accounts')
+    .select('balance, currency')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (accErr || !account) throw new Error('Account not found');
+  if (account.balance < amount) throw new Error('Insufficient funds');
+
+  const { error: balErr } = await supabase
+    .from('bank_accounts')
+    .update({ balance: account.balance - amount })
+    .eq('id', accountId);
+  if (balErr) throw balErr;
+
+  const { error: txErr } = await supabase.from('transactions').insert({
+    account_id: accountId,
+    type: 'withdrawal',
+    status: 'completed',
+    amount: -amount,
+    currency: account.currency,
+    description: description || 'Withdrawal',
+    recipient_account: recipient_account || null,
+  });
+  if (txErr) throw txErr;
+
+  return { success: true };
+}
+
+// ─── Admin: credit a user account (add balance) ──────────────────────────────
+
+export async function adminCreditAccount(payload: {
+  accountId: string;
+  amount: number;
+  description?: string;
+}) {
+  const { accountId, amount, description } = payload;
+  if (amount <= 0) throw new Error('Amount must be greater than zero');
+
+  const { data: account, error: accErr } = await supabase
+    .from('bank_accounts')
+    .select('balance, currency')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (accErr || !account) throw new Error('Account not found');
+
+  const { error: balErr } = await supabase
+    .from('bank_accounts')
+    .update({ balance: account.balance + amount })
+    .eq('id', accountId);
+  if (balErr) throw balErr;
+
+  const { error: txErr } = await supabase.from('transactions').insert({
+    account_id: accountId,
+    type: 'deposit',
+    status: 'completed',
+    amount,
+    currency: account.currency,
+    description: description || 'Admin Credit',
+  });
+  if (txErr) throw txErr;
+
+  return { success: true };
+}
+
 // ─── Investments ─────────────────────────────────────────────────────────────
 
 export async function getUserInvestments(userId: string): Promise<Investment[]> {
@@ -221,4 +332,81 @@ export async function submitContactMessage(payload: {
 export async function subscribeNewsletter(email: string) {
   const { error } = await supabase.from('newsletter_subscribers').insert({ email });
   if (error && error.code !== '23505') throw error; // ignore duplicate
+}
+
+// ─── Debit Card Requests ─────────────────────────────────────────────────────
+
+export async function getUserCardRequests(userId: string): Promise<CardRequest[]> {
+  const { data } = await supabase
+    .from('card_requests')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return Array.isArray(data) ? data : [];
+}
+
+export async function requestDebitCard(payload: {
+  user_id: string;
+  account_id: string;
+  card_type?: string;
+  card_network?: string;
+  delivery_address?: string;
+}): Promise<CardRequest | null> {
+  const { data, error } = await supabase
+    .from('card_requests')
+    .insert({
+      user_id: payload.user_id,
+      account_id: payload.account_id,
+      card_type: payload.card_type || 'debit',
+      card_network: payload.card_network || 'Visa',
+      delivery_address: payload.delivery_address || null,
+      status: 'pending',
+    })
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCardRequestStatus(
+  requestId: string,
+  status: 'pending' | 'completed' | 'failed' | 'cancelled',
+  notes?: string
+) {
+  const updates: Record<string, unknown> = { status };
+  if (notes !== undefined) updates.notes = notes;
+  const { data, error } = await supabase
+    .from('card_requests')
+    .update(updates)
+    .eq('id', requestId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getAllCardRequests(): Promise<(CardRequest & { username: string | null; first_name: string | null })[]> {
+  const { data } = await supabase
+    .from('card_requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (!Array.isArray(data)) return [];
+  const enriched = await Promise.all(
+    data.map(async (cr) => {
+      const { data: acc } = await supabase
+        .from('bank_accounts')
+        .select('user_id')
+        .eq('id', cr.account_id)
+        .maybeSingle();
+      const userId = acc?.user_id;
+      if (!userId) return { ...cr, username: null, first_name: null };
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username, first_name')
+        .eq('id', userId)
+        .maybeSingle();
+      return { ...cr, username: profile?.username || null, first_name: profile?.first_name || null };
+    })
+  );
+  return enriched;
 }

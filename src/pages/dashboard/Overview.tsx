@@ -101,10 +101,20 @@ export default function DashboardPage() {
               <div className="text-white/60 text-xs mt-1 capitalize">{primaryAccount?.account_type} Account</div>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            <Link to="/dashboard/money">
+              <Button size="sm" className="bg-white/20 text-white border border-white/30 hover:bg-white/30">
+                <ArrowDownLeft className="w-4 h-4 mr-1" /> Deposit / Withdraw
+              </Button>
+            </Link>
             <Link to="/dashboard/transfer">
               <Button size="sm" className="bg-white/20 text-white border border-white/30 hover:bg-white/30">
                 <ArrowUpRight className="w-4 h-4 mr-1" /> Transfer
+              </Button>
+            </Link>
+            <Link to="/dashboard/debit-card">
+              <Button size="sm" className="bg-white/20 text-white border border-white/30 hover:bg-white/30">
+                <CreditCard className="w-4 h-4 mr-1" /> Debit Card
               </Button>
             </Link>
             <Link to="/dashboard/transactions">

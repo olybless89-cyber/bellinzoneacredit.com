@@ -59,7 +59,7 @@ const stats = [
 const testimonials = [
   { name: 'Jameson Thorne', role: 'Portfolio Manager, London', text: 'The institutional-grade tools and white-glove service at Skyboard are unparalleled. My portfolio has never been more secure or more productive.' },
   { name: 'Elena Rodriguez', role: 'Global Logistics CEO', text: 'Switching to their digital core was a game changer for my global transactions. Speed, security, and absolute transparency.' },
-  { name: 'Dr. Alan Grant', role: 'Fintech Researcher', text: 'SKY-BORD Bank represents the future of institutional finance. Their focus on digital innovation and user experience is unmatched.' },
+  { name: 'Dr. Alan Grant', role: 'Fintech Researcher', text: 'Bellinzone represents the future of institutional finance. Their focus on digital innovation and user experience is unmatched.' },
   { name: 'Robert Ford', role: 'Manager, London', text: 'I appreciate the transparency. No hidden fees, great rates, and a support team that actually cares about your financial success.' },
   { name: 'Linda Garcia', role: 'Global Logistics', text: 'The international wire transfer speed is unmatched. I can move funds to my overseas partners instantly. Highly recommended.' },
 ];

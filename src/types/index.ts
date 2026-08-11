@@ -85,3 +85,16 @@ export interface KycDocument {
   created_at: string;
   updated_at: string;
 }
+
+export interface CardRequest {
+  id: string;
+  user_id: string;
+  account_id: string | null;
+  card_type: string;
+  card_network: string;
+  delivery_address: string | null;
+  status: TransactionStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}

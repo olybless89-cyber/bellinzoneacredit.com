@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
-import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import type { Profile } from '@/types';
+import type { Profile, BankAccount } from '@/types';
+import { adminCreditAccount } from '@/services/api';
 
 interface UserWithAccounts extends Profile {
   account_count: number;
@@ -19,6 +21,40 @@ export default function AdminUsers() {
   const [sortField, setSortField] = useState<'created_at' | 'first_name'>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Add-balance dialog state
+  const [creditUser, setCreditUser] = useState<UserWithAccounts | null>(null);
+  const [creditAccounts, setCreditAccounts] = useState<BankAccount[]>([]);
+  const [creditAccountId, setCreditAccountId] = useState('');
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditNote, setCreditNote] = useState('');
+  const [creditLoading, setCreditLoading] = useState(false);
+
+  const openCredit = async (u: UserWithAccounts) => {
+    setCreditUser(u);
+    setCreditAmount(''); setCreditNote('');
+    const { data: accs } = await supabase.from('bank_accounts').select('*').eq('user_id', u.id).order('created_at', { ascending: true });
+    setCreditAccounts(accs || []);
+    setCreditAccountId(accs && accs[0] ? accs[0].id : '');
+  };
+
+  const submitCredit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!creditAccountId) { toast.error('User has no account to credit'); return; }
+    const amt = parseFloat(creditAmount);
+    if (!amt || amt <= 0) { toast.error('Enter a valid amount'); return; }
+    setCreditLoading(true);
+    try {
+      await adminCreditAccount({ accountId: creditAccountId, amount: amt, description: creditNote || 'Admin Credit' });
+      toast.success(`$${amt.toFixed(2)} credited successfully`);
+      setCreditUser(null);
+      await loadUsers();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to credit account');
+    } finally {
+      setCreditLoading(false);
+    }
+  };
 
   const loadUsers = useCallback(async () => {
     const { data: profiles } = await supabase
@@ -163,6 +199,15 @@ export default function AdminUsers() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="border border-primary/30 text-xs h-8 px-2 text-primary hover:bg-primary/10"
+                            onClick={() => openCredit(u)}
+                            disabled={actionLoading === u.id + '_credit'}
+                          >
+                            <PlusCircle className="w-3 h-3 mr-1" />Add Balance
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="border border-border text-xs h-8 px-2"
                             onClick={() => toggleRole(u.id, u.role)}
                             disabled={actionLoading === u.id}
@@ -195,6 +240,48 @@ export default function AdminUsers() {
           Showing {filtered.length} of {users.length} users
         </div>
       )}
+
+      {/* Add Balance dialog */}
+      <Dialog open={!!creditUser} onOpenChange={(open) => !open && setCreditUser(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Balance — {creditUser?.first_name || creditUser?.username || 'User'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitCredit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</label>
+              {creditAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">This user has no bank account yet.</p>
+              ) : (
+                <select value={creditAccountId} onChange={(e) => setCreditAccountId(e.target.value)} className="w-full h-12 px-4 rounded-xl bg-muted border border-border text-foreground text-sm">
+                  {creditAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.account_number} — {a.currency} {a.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} ({a.account_type})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Amount</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">$</span>
+                <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} className="bg-white border-border h-12 pl-8 text-lg font-semibold" required />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Note (Optional)</label>
+              <Input placeholder="e.g. Welcome bonus, Manual deposit" value={creditNote} onChange={(e) => setCreditNote(e.target.value)} className="bg-white border-border h-12" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setCreditUser(null)} className="border border-border">Cancel</Button>
+              <Button type="submit" disabled={creditLoading || !creditAccountId} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                {creditLoading ? 'Crediting...' : 'Credit Account'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function DigitalBankingPage() {
               <div className="text-white/60 text-xs mb-1">Available Balance</div>
               <div className="text-white text-3xl font-extrabold mb-4">$84,950.40</div>
               <div className="flex justify-between text-white/60 text-xs">
-                <span>SKB•••• 9870</span>
+                <span>BZC•••• 9870</span>
                 <span>VISA Platinum</span>
               </div>
             </div>

@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, ShieldCheck, ArrowUpRight,
-  LogOut, Menu, X, Building2, ChevronRight,
+  LogOut, Menu, X, Building2, ChevronRight, CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -15,6 +15,7 @@ const navItems = [
   { path: '/admin/users', label: 'Users', icon: Users, end: false },
   { path: '/admin/kyc', label: 'KYC Queue', icon: ShieldCheck, end: false },
   { path: '/admin/transactions', label: 'Transactions', icon: ArrowUpRight, end: false },
+  { path: '/admin/card-requests', label: 'Card Requests', icon: CreditCard, end: false },
 ];
 
 function NavItems({ onClick }: { onClick?: () => void }) {
@@ -74,7 +75,7 @@ export default function AdminLayout() {
           <Building2 className="w-5 h-5 text-primary-foreground" />
         </div>
         <div>
-          <div className="font-bold text-sm text-foreground leading-none">SKY-BORD BANK</div>
+          <div className="font-bold text-sm text-foreground leading-none">Bellinzone A Credit</div>
           <div className="text-xs text-destructive font-semibold mt-0.5">ADMIN PORTAL</div>
         </div>
       </div>

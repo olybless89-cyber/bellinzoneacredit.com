@@ -50,7 +50,7 @@ export default function Header() {
       {/* Top bar */}
       <div className={cn('border-b border-white/10 transition-all duration-300', scrolled && 'hidden')}>
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>support@skybordbank.com</span>
+          <span>support@bellinzoneacredit.com</span>
           <span>Find Nearest Branch</span>
         </div>
       </div>
@@ -64,7 +64,7 @@ export default function Header() {
               <Building2 className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="hidden sm:block">
-              <span className="text-primary">SKY-BORD</span>
+              <span className="text-primary">Bellinzone</span>
               <span className="text-foreground ml-1">BANK</span>
             </span>
           </Link>
@@ -136,7 +136,7 @@ export default function Header() {
                   <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                     <Building2 className="w-4 h-4 text-primary-foreground" />
                   </div>
-                  <span><span className="text-primary">SKY-BORD</span> BANK</span>
+                  <span><span className="text-primary">Bellinzone</span> BANK</span>
                 </Link>
                 <nav className="flex flex-col gap-2">
                   {[{ label: 'Home', href: '/' }, ...navLinks.slice(1)].map((link) => (

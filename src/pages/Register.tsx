@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 const COUNTRIES = ['United States','United Kingdom','Canada','Australia','Germany','France','India','Nigeria','South Africa','Singapore','UAE','Netherlands','Switzerland','Japan','Brazil','Mexico','Kenya','Ghana'];
 const CURRENCIES = ['USD','GBP','EUR','CAD','AUD','NGN','ZAR','SGD','AED','CHF','JPY'];
 const ACCOUNT_TYPES = ['savings','checking','corporate','student','joint','fixed'];
-const BRANCHES = ['London City Branch','New York Main Branch','Tokyo Fintech Hub','Zurich Private Wealth Center','SKY-BORD BANK HQ'];
+const BRANCHES = ['London City Branch','New York Main Branch','Tokyo Fintech Hub','Zurich Private Wealth Center','Bellinzone HQ'];
 const ID_TYPES = ['National ID','International Passport','Driver\'s License','Voter\'s Card'];
 
 interface FormData {
@@ -77,7 +77,7 @@ export default function RegisterPage() {
             country: form.country,
             login_pin: form.login_pin,
           },
-          emailRedirectTo: 'https://skybordbank.com/dashboard',
+          emailRedirectTo: 'https://bellinzoneacredit.com/dashboard',
         },
       });
       if (signUpErr) throw signUpErr;
@@ -148,7 +148,7 @@ export default function RegisterPage() {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
               <Building2 className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span><span className="text-primary">SKY-BORD</span> BANK</span>
+            <span><span className="text-primary">Bellinzone</span> BANK</span>
           </Link>
           <div className="text-muted-foreground text-sm">Step {step + 1} of 4 — {STEP_TITLES[step]}</div>
         </div>
