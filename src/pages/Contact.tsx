@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Phone, Mail, Clock, Send } from 'lucide-react';
+import { MapPin, Mail, Clock, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -46,7 +46,6 @@ export default function ContactPage() {
                 <div className="space-y-5">
                   {[
                     { icon: MapPin, label: 'Head Office', value: 'Via Giovanni Nizzola 1, 6500 Bellinzona, Switzerland' },
-                    { icon: Phone, label: 'Phone Number', value: '+8801682648101' },
                     { icon: Mail, label: 'Email Address', value: 'support@bellinzoneacredit.com' },
                     { icon: Clock, label: 'Business Hours', value: 'Mon – Fri: 09:00 – 17:00\nSat: 09:00 – 13:00' },
                   ].map(({ icon: Icon, label, value }) => (

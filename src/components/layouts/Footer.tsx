@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Twitter, Facebook, Instagram, Youtube, Linkedin, Mail, Phone, MapPin } from 'lucide-react';
+import { Building2, Twitter, Facebook, Instagram, Youtube, Linkedin, Mail, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -73,10 +73,6 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <span>Via Giovanni Nizzola 1, 6500 Bellinzona, Switzerland</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone className="w-4 h-4 text-primary shrink-0" />
-                <a href="tel:+8801682648101" className="hover:text-primary transition-colors">+8801682648101</a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-primary shrink-0" />
