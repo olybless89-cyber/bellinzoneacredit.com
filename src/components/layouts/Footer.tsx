@@ -72,7 +72,7 @@ export default function Footer() {
             <ul className="space-y-4 text-sm text-muted-foreground">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <span>London Office, Skyboard Plaza, Westminster, SW1A 1AA</span>
+                <span>Via Giovanni Nizzola 1, 6500 Bellinzona, Switzerland</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-primary shrink-0" />

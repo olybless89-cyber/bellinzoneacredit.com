@@ -109,7 +109,7 @@ export default function DebitCardPage() {
 
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Delivery Address (Optional)</label>
-              <Input placeholder="e.g. 12 High Street, London, SW1A 1AA" value={address} onChange={(e) => setAddress(e.target.value)} className="bg-white border-border shadow-sm h-12" />
+              <Input placeholder="e.g. Via Giovanni Nizzola 1, 6500 Bellinzona" value={address} onChange={(e) => setAddress(e.target.value)} className="bg-white border-border shadow-sm h-12" />
             </div>
 
             <Button type="submit" disabled={submitting} className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90">

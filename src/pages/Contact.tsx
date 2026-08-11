@@ -45,7 +45,7 @@ export default function ContactPage() {
                 <h2 className="text-2xl font-extrabold text-foreground mb-6">Contact Information</h2>
                 <div className="space-y-5">
                   {[
-                    { icon: MapPin, label: 'London Office', value: 'Skyboard Plaza, Westminster, SW1A 1AA, United Kingdom' },
+                    { icon: MapPin, label: 'Head Office', value: 'Via Giovanni Nizzola 1, 6500 Bellinzona, Switzerland' },
                     { icon: Phone, label: 'Phone Number', value: '+8801682648101' },
                     { icon: Mail, label: 'Email Address', value: 'support@bellinzoneacredit.com' },
                     { icon: Clock, label: 'Business Hours', value: 'Mon – Fri: 09:00 – 17:00\nSat: 09:00 – 13:00' },
