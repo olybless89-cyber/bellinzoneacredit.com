@@ -65,7 +65,6 @@ export default function Header() {
             </div>
             <span className="hidden sm:block">
               <span className="text-primary">Bellinzona</span>
-              <span className="text-foreground ml-1">BANK</span>
             </span>
           </Link>
 
