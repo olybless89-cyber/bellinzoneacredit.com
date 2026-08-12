@@ -31,7 +31,7 @@ export default function MobileWebBankingPage() {
             <div className="glass-card rounded-2xl p-8 border border-border text-center">
               <div className="w-32 h-64 bg-gradient-to-b from-secondary to-card rounded-3xl border-4 border-border mx-auto flex flex-col items-center justify-center gap-4">
                 <Smartphone className="w-12 h-12 text-primary" />
-                <div className="text-xs text-muted-foreground">Bellinzone App</div>
+                <div className="text-xs text-muted-foreground">Bellinzona App</div>
                 <div className="px-3 py-1 bg-primary rounded-full text-primary-foreground text-xs">Available</div>
               </div>
             </div>

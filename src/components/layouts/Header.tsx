@@ -64,7 +64,7 @@ export default function Header() {
               <Building2 className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="hidden sm:block">
-              <span className="text-primary">Bellinzone</span>
+              <span className="text-primary">Bellinzona</span>
               <span className="text-foreground ml-1">BANK</span>
             </span>
           </Link>
@@ -136,7 +136,7 @@ export default function Header() {
                   <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                     <Building2 className="w-4 h-4 text-primary-foreground" />
                   </div>
-                  <span><span className="text-primary">Bellinzone</span> BANK</span>
+                  <span><span className="text-primary">Bellinzona</span></span>
                 </Link>
                 <nav className="flex flex-col gap-2">
                   {[{ label: 'Home', href: '/' }, ...navLinks.slice(1)].map((link) => (

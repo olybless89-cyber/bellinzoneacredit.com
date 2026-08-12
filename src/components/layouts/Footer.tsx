@@ -35,7 +35,7 @@ export default function Footer() {
               <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
                 <Building2 className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span><span className="text-primary">Bellinzone</span> BANK</span>
+              <span><span className="text-primary">Bellinzona</span></span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed mb-6">
               A digital-first financial institution dedicated to providing secure, innovative, and customer-centric banking solutions for a modern world.
@@ -105,7 +105,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <span>© 2026 Bellinzone A Credit. All rights reserved.</span>
+          <span>© 2026 Bellinezona Credit Union. All rights reserved.</span>
           <div className="flex items-center gap-4">
             <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>

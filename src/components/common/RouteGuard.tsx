@@ -37,7 +37,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
           <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
           </div>
-          <p className="text-muted-foreground text-sm">Loading Bellinzone A Credit...</p>
+          <p className="text-muted-foreground text-sm">Loading Bellinezona Credit Union...</p>
         </div>
       </div>
     );

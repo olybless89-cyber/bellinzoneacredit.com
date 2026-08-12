@@ -38,7 +38,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
             <Building2 className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span><span className="text-primary">Bellinzone</span> BANK</span>
+          <span><span className="text-primary">Bellinzona</span></span>
         </Link>
       </div>
 
@@ -132,7 +132,7 @@ export default function DashboardLayout() {
           <Button variant="ghost" size="sm" onClick={() => setMobileOpen(true)}>
             <Menu className="w-5 h-5" />
           </Button>
-          <span className="font-semibold text-sm"><span className="text-primary">Bellinzone</span> BANK</span>
+          <span className="font-semibold text-sm"><span className="text-primary">Bellinzona</span></span>
           <div className="w-9" />
         </header>
         <main className="flex-1 overflow-x-hidden p-4 md:p-8">
