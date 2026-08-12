@@ -17,7 +17,7 @@ interface FormData {
   fname: string; lname: string; gender: string; dob: string;
   country: string; email: string; phone: string;
   currency: string; account_type: string; branch: string; id_card_type: string;
-  username: string; password: string; login_pin: string; agree: boolean;
+  username: string; login_pin: string; agree: boolean;
 }
 
 const STEP_TITLES = ['Personal Info', 'Contact', 'Account & KYC', 'Security'];
@@ -33,7 +33,7 @@ export default function RegisterPage() {
     fname: '', lname: '', gender: '', dob: '',
     country: '', email: '', phone: '',
     currency: 'USD', account_type: 'savings', branch: '', id_card_type: '',
-    username: '', password: '', login_pin: '', agree: false,
+    username: '', login_pin: '', agree: false,
   });
 
   const set = (k: keyof FormData, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
@@ -43,8 +43,8 @@ export default function RegisterPage() {
       const name = `${userId}/${side}_${Date.now()}.${file.name.split('.').pop()}`;
       const { data, error } = await supabase.storage.from('kyc_documents').upload(name, file, { contentType: file.type });
       if (error) throw error;
-      const { data: url } = supabase.storage.from('kyc_documents').getPublicUrl(data.path);
-      return url.publicUrl;
+      // bucket is private — store the storage path, not a public URL
+      return data.path;
     };
     const frontUrl = frontFile ? await upload(frontFile, 'front') : null;
     const backUrl = backFile ? await upload(backFile, 'back') : null;
@@ -257,7 +257,6 @@ export default function RegisterPage() {
               <div className="space-y-4">
                 <h3 className="text-xl font-bold text-foreground mb-6">Security Setup</h3>
                 <div><label className="block text-xs font-semibold text-muted-foreground mb-2">Username</label><Input placeholder="johnsmith" value={form.username} onChange={(e) => set('username', e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))} className="bg-white border-border shadow-sm" required /></div>
-                <div><label className="block text-xs font-semibold text-muted-foreground mb-2">Password</label><Input type="password" placeholder="••••••••" value={form.password} onChange={(e) => set('password', e.target.value)} className="bg-white border-border shadow-sm" required /></div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-2">4-Digit Login PIN</label>
                   <Input type="password" placeholder="••••" maxLength={4} inputMode="numeric" pattern="[0-9]{4}" value={form.login_pin} onChange={(e) => set('login_pin', e.target.value.replace(/\D/g, '').slice(0, 4))} className="bg-white border-border tracking-widest text-center text-xl shadow-sm" required />
