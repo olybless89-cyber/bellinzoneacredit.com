@@ -76,7 +76,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-primary shrink-0" />
-                <a href="mailto:support@bellinzoneacredit.com" className="hover:text-primary transition-colors">support@bellinzoneacredit.com</a>
+                <a href="mailto:support@bellinzonacredit.com" className="hover:text-primary transition-colors">support@bellinzonacredit.com</a>
               </li>
             </ul>
             <div className="mt-4 text-xs text-muted-foreground space-y-1">
@@ -105,7 +105,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <span>© 2026 Bellinezona Credit Union. All rights reserved.</span>
+          <span>© 2026 Bellinzona Credit Union. All rights reserved.</span>
           <div className="flex items-center gap-4">
             <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>

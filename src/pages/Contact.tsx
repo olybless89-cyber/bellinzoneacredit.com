@@ -46,7 +46,7 @@ export default function ContactPage() {
                 <div className="space-y-5">
                   {[
                     { icon: MapPin, label: 'Head Office', value: 'Via Giovanni Nizzola 1, 6500 Bellinzona, Switzerland' },
-                    { icon: Mail, label: 'Email Address', value: 'support@bellinzoneacredit.com' },
+                    { icon: Mail, label: 'Email Address', value: 'support@bellinzonacredit.com' },
                     { icon: Clock, label: 'Business Hours', value: 'Mon – Fri: 09:00 – 17:00\nSat: 09:00 – 13:00' },
                   ].map(({ icon: Icon, label, value }) => (
                     <div key={label} className="flex items-start gap-4">

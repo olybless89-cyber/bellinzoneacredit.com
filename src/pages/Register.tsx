@@ -77,7 +77,7 @@ export default function RegisterPage() {
             country: form.country,
             login_pin: form.login_pin,
           },
-          emailRedirectTo: 'https://bellinzoneacredit.com/dashboard',
+          emailRedirectTo: 'https://bellinzonacredit.com/dashboard',
         },
       });
       if (signUpErr) throw signUpErr;

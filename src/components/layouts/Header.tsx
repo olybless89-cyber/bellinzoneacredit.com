@@ -50,7 +50,7 @@ export default function Header() {
       {/* Top bar */}
       <div className={cn('border-b border-white/10 transition-all duration-300', scrolled && 'hidden')}>
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between text-xs text-muted-foreground">
-          <span>support@bellinzoneacredit.com</span>
+          <span>support@bellinzonacredit.com</span>
           <span>Find Nearest Branch</span>
         </div>
       </div>
