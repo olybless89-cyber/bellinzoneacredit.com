@@ -1,11 +1,23 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
-import { Search, TrendingDown, TrendingUp, ArrowUpRight, Filter } from 'lucide-react';
+import { Search, TrendingDown, TrendingUp, ArrowUpRight, Filter, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Transaction } from '@/types';
+
+const TXN_TYPES = ['deposit', 'withdrawal', 'transfer', 'interest'];
+const TXN_STATUSES = ['completed', 'pending', 'failed', 'cancelled'];
+
+// datetime-local inputs want "YYYY-MM-DDTHH:mm" in local time
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface TxnWithUser extends Transaction {
   username: string | null;
@@ -33,6 +45,51 @@ export default function AdminTransactions() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 25;
+
+  // Edit dialog state
+  const [editing, setEditing] = useState<TxnWithUser | null>(null);
+  const [editForm, setEditForm] = useState({ type: '', status: '', amount: '', description: '', recipient_account: '', reference: '', created_at: '' });
+  const [saving, setSaving] = useState(false);
+
+  const openEdit = (t: TxnWithUser) => {
+    setEditing(t);
+    setEditForm({
+      type: t.type,
+      status: t.status,
+      amount: String(t.amount),
+      description: t.description || '',
+      recipient_account: t.recipient_account || '',
+      reference: t.reference,
+      created_at: toLocalInput(t.created_at),
+    });
+  };
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+    const amount = parseFloat(editForm.amount);
+    if (isNaN(amount)) { toast.error('Amount must be a number'); return; }
+    const date = new Date(editForm.created_at);
+    if (isNaN(date.getTime())) { toast.error('Invalid date'); return; }
+    setSaving(true);
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        type: editForm.type,
+        status: editForm.status,
+        amount,
+        description: editForm.description || null,
+        recipient_account: editForm.recipient_account || null,
+        reference: editForm.reference,
+        created_at: date.toISOString(),
+      })
+      .eq('id', editing.id);
+    setSaving(false);
+    if (error) { toast.error(`Failed to update transaction: ${error.message}`); return; }
+    toast.success('Transaction updated');
+    setEditing(null);
+    loadTxns();
+  };
 
   const loadTxns = useCallback(async () => {
     const { data: transactions } = await supabase
@@ -123,17 +180,18 @@ export default function AdminTransactions() {
                 <th className="text-left px-6 py-3">Recipient</th>
                 <th className="text-left px-6 py-3">Status</th>
                 <th className="text-left px-6 py-3">Date</th>
+                <th className="text-right px-6 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading
                 ? Array.from({ length: 8 }).map((_, i) => (
                   <tr key={i} className="border-b border-border last:border-0">
-                    {Array.from({ length: 7 }).map((__, j) => <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>)}
+                    {Array.from({ length: 8 }).map((__, j) => <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>)}
                   </tr>
                 ))
                 : filtered.length === 0
-                  ? <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No transactions found</td></tr>
+                  ? <tr><td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">No transactions found</td></tr>
                   : filtered.map((t) => (
                     <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
                       <td className="px-6 py-4">
@@ -159,9 +217,13 @@ export default function AdminTransactions() {
                       <td className="px-6 py-4 text-xs text-muted-foreground">
                         {new Date(t.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </td>
+                      <td className="px-6 py-4 text-right">
+                        <Button size="sm" variant="ghost" className="border border-border h-8 px-2" onClick={() => openEdit(t)} title="Edit transaction">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      </td>
                     </tr>
-                  ))
-              }
+                  ))}
             </tbody>
           </table>
         </div>
@@ -179,6 +241,66 @@ export default function AdminTransactions() {
           </Button>
         </div>
       </div>
+
+      {/* Edit transaction dialog */}
+      <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Transaction</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <form onSubmit={saveEdit} className="space-y-4 mt-2">
+              <div className="text-xs text-muted-foreground">
+                {editing.first_name || 'Unknown user'} · <span className="font-mono">{editing.id.slice(0, 8)}…</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Type</label>
+                  <select value={editForm.type} onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value }))} className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-foreground text-sm capitalize">
+                    {TXN_TYPES.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Status</label>
+                  <select value={editForm.status} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))} className="w-full h-10 px-3 rounded-lg bg-muted border border-border text-foreground text-sm capitalize">
+                    {TXN_STATUSES.map((s) => <option key={s} value={s} className="capitalize">{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Amount (negative = money out)</label>
+                <Input type="number" step="0.01" value={editForm.amount} onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))} className="bg-muted border-border" required />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Description</label>
+                <Input value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} className="bg-muted border-border" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Recipient Account</label>
+                  <Input value={editForm.recipient_account} onChange={(e) => setEditForm((f) => ({ ...f, recipient_account: e.target.value }))} className="bg-muted border-border font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Reference</label>
+                  <Input value={editForm.reference} onChange={(e) => setEditForm((f) => ({ ...f, reference: e.target.value }))} className="bg-muted border-border font-mono text-xs" required />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Date & Time</label>
+                <Input type="datetime-local" value={editForm.created_at} onChange={(e) => setEditForm((f) => ({ ...f, created_at: e.target.value }))} className="bg-muted border-border" required />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => setEditing(null)} className="border border-border">
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

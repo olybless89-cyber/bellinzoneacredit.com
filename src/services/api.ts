@@ -547,7 +547,7 @@ export async function setUserTransferPin(userId: string, pin: string): Promise<v
 export async function adminDeleteUser(userId: string): Promise<void> {
   const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
   if (error) {
-    if (isMissingSchemaError(error)) throw new Error('Database migration 00010 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    if (error.code === 'PGRST202') throw new Error('Database migration 00010 has not been applied yet. Run it in the Supabase SQL Editor first.');
     throw error;
   }
 }
