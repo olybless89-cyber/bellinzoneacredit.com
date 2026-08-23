@@ -35,6 +35,7 @@ import MoneyPage from '@/pages/dashboard/Money';
 import DebitCardPage from '@/pages/dashboard/DebitCard';
 import InvestmentsPage from '@/pages/dashboard/Investments';
 import ProfilePage from '@/pages/dashboard/Profile';
+import MessagesPage from '@/pages/dashboard/Messages';
 
 // Admin pages
 import AdminLayout from '@/pages/admin/AdminLayout';
@@ -43,6 +44,7 @@ import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminKYC from '@/pages/admin/AdminKYC';
 import AdminTransactions from '@/pages/admin/AdminTransactions';
 import AdminCardRequests from '@/pages/admin/AdminCardRequests';
+import AdminMessages from '@/pages/admin/AdminMessages';
 
 // 404
 import NotFound from '@/pages/NotFound';
@@ -82,6 +84,7 @@ const App: React.FC = () => {
               <Route path="money" element={<MoneyPage />} />
               <Route path="debit-card" element={<DebitCardPage />} />
               <Route path="investments" element={<InvestmentsPage />} />
+              <Route path="messages" element={<MessagesPage />} />
               <Route path="profile" element={<ProfilePage />} />
             </Route>
 
@@ -92,6 +95,7 @@ const App: React.FC = () => {
               <Route path="kyc" element={<AdminKYC />} />
               <Route path="transactions" element={<AdminTransactions />} />
               <Route path="card-requests" element={<AdminCardRequests />} />
+              <Route path="messages" element={<AdminMessages />} />
             </Route>
 
             <Route path="/404" element={<NotFound />} />

@@ -27,6 +27,7 @@ export interface Profile {
   country: string | null;
   login_pin: string | null;
   avatar_url: string | null;
+  transfers_blocked?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -97,4 +98,38 @@ export interface CardRequest {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type NotificationType = 'info' | 'success' | 'warning' | 'transaction' | 'message' | 'security';
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string | null;
+  type: NotificationType;
+  is_read: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface MailMessage {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  subject: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export type TransferMethod = 'internal' | 'ach' | 'wire' | 'international';
+
+export interface TransferDetails {
+  beneficiaryName: string;
+  bankName: string;
+  routingNumber: string;
+  swiftCode?: string;
+  method: TransferMethod;
+  reference?: string;
 }

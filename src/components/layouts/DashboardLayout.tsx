@@ -3,11 +3,12 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ArrowLeftRight, History, User,
   Building2, LogOut, Menu, Settings, TrendingUp, Shield,
-  Wallet, CreditCard,
+  Wallet, CreditCard, Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
+import NotificationBell from '@/components/common/NotificationBell';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { label: 'Debit Card', href: '/dashboard/debit-card', icon: CreditCard },
   { label: 'Transactions', href: '/dashboard/transactions', icon: History },
   { label: 'Investments', href: '/dashboard/investments', icon: TrendingUp },
+  { label: 'Messages', href: '/dashboard/messages', icon: Mail },
   { label: 'Profile', href: '/dashboard/profile', icon: User },
 ];
 
@@ -133,7 +135,11 @@ export default function DashboardLayout() {
             <Menu className="w-5 h-5" />
           </Button>
           <span className="font-semibold text-sm"><span className="text-primary">Bellinzona</span></span>
-          <div className="w-9" />
+          <NotificationBell />
+        </header>
+        {/* Desktop header */}
+        <header className="hidden md:flex items-center justify-end px-8 h-14 border-b border-border bg-card shrink-0 sticky top-0 z-20">
+          <NotificationBell />
         </header>
         <main className="flex-1 overflow-x-hidden p-4 md:p-8">
           <Outlet />

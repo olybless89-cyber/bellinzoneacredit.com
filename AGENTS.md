@@ -38,15 +38,23 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - tsconfig uses `@typescript/native-preview` (tsgo). `npx tsc` may not be the checker; use `tsgo`.
 - index.html had `lang="zh-CN"` — fixed to `en`.
 
-## Current State (2026-08-11)
-- Rebranded + new features built, verified end-to-end against live Supabase, and pushed to `bellinzoneacredit.com` main (commit b2b6415).
-- Verified live (REST + browser UI): login (user+admin), deposit ($50), withdrawal ($40), admin add-balance ($100 + $250), transactions visible to both user and admin.
+## Current State (2026-08-23)
+- Rebranded + new features built, verified end-to-end against live Supabase, and pushed to `bellinzoneacredit.com` main.
+- Verified live (REST + browser UI): login (user+admin), deposit, withdrawal, admin add-balance, new detailed transfer flow ($5 internal transfer with beneficiary details).
 - Migration `00005_rebrand_and_card_requests.sql` written but **NOT APPLIED** to live DB (needs service_role key). Debit card *ordering* returns 404 until applied; the page UI + admin approval UI work and degrade gracefully.
+- Migration `00006_transfers_notifications_mail.sql` written but **NOT APPLIED** to live DB. Until applied: transfer blocking, notifications bell, and built-in mail UI all render but degrade gracefully (blocks read as "not blocked"; notifications/messages return empty; write attempts show a toast telling admin to apply migration 00006).
 - Build clean (`vite build`), `tsgo` + `biome lint` pass.
 
+## Feature model (added 2026-08-23)
+- **Transfers**: full beneficiary form (name, account/IBAN, bank, routing (9-digit ABA), SWIFT for international), 4 methods (internal/ACH/wire/international) with fees + ETA, review screen, login-PIN verification only (NO COT code, NO separate transfer PIN). Details stored in `transactions.metadata` jsonb (works without migration).
+- **Transfer blocks**: per-user `profiles.transfers_blocked` flag + global `site_settings.transfers_blocked` (admin toggle in AdminOverview "Transfer Controls" card; per-user button in AdminUsers). Checked in `transferFunds` + Transfer page UI.
+- **Built-in mail** (`messages` table): user page `/dashboard/messages` (compose goes to all admins via `public_profiles` view), admin page `/admin/messages` (recipient picker + broadcast-to-all; `/admin/messages?to=<userId>` preselects). No external email provider.
+- **Notifications** (`notifications` table): bell (`NotificationBell`) in DashboardLayout + AdminLayout headers, 20s polling. Fired on: sign-in, deposit, withdrawal, transfer sent/received, admin credit, card status change, new message, transfer block/unblock. All notification writes are best-effort and silently no-op if the table is missing.
+- `send-email` edge function calls removed from Transfer/AdminUsers (function was never deployed, 404).
+
 ## Deployment Blockers (need user credentials)
-1. **Supabase service_role key** — to apply migration 00005 (creates `card_requests` table + RLS). Apply via Supabase Dashboard → SQL Editor, or `supabase db push` with DB access.
-2. **Railway token** — to deploy (CLI not installed in env). Repo is Railway-ready (Dockerfile + nixpacks.toml); set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` as Railway env vars.
+1. **Supabase service_role key** — to apply migrations 00005 + 00006. Apply via Supabase Dashboard → SQL Editor (paste file contents, run 00005 first), or `supabase db push` with DB access.
+2. **Railway token** — to deploy manually (CLI not installed in env). Repo is Railway-ready (Dockerfile + nixpacks.toml); pushing to GitHub `main` auto-deploys if the Railway project is connected to the repo. Set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` as Railway env vars.
 
 ## Test Credentials (live Supabase)
 - Admin: `admin@skybordbank.com` / PIN `1234`

@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
-import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle } from 'lucide-react';
+import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { Profile, BankAccount } from '@/types';
-import { adminCreditAccount } from '@/services/api';
+import { adminCreditAccount, setUserTransfersBlocked } from '@/services/api';
 
 interface UserWithAccounts extends Profile {
   account_count: number;
@@ -15,6 +16,7 @@ interface UserWithAccounts extends Profile {
 }
 
 export default function AdminUsers() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserWithAccounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -81,33 +83,27 @@ export default function AdminUsers() {
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
+  const toggleTransferBlock = async (u: UserWithAccounts) => {
+    const blocked = !!u.transfers_blocked;
+    setActionLoading(u.id + '_block');
+    try {
+      await setUserTransfersBlocked(u.id, !blocked);
+      toast.success(!blocked
+        ? `Transfers blocked for ${u.first_name || u.username || u.email}`
+        : `Transfers unblocked for ${u.first_name || u.username || u.email}`);
+      await loadUsers();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update transfer block');
+    }
+    setActionLoading(null);
+  };
+
   const toggleRole = async (userId: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
     setActionLoading(userId);
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
     if (error) { toast.error('Failed to update role'); }
     else { toast.success(`Role updated to ${newRole}`); await loadUsers(); }
-    setActionLoading(null);
-  };
-
-  const sendEmail = async (user: UserWithAccounts) => {
-    const email = user.email;
-    if (!email) { toast.error('No email on file for this user'); return; }
-    setActionLoading(user.id + '_email');
-    try {
-      const res = await supabase.functions.invoke('send-email', {
-        body: {
-          type: 'login_alert',
-          to: email,
-          user_id: user.id,
-          data: { first_name: user.first_name || user.username },
-        },
-      });
-      if (res.error) throw res.error;
-      toast.success(`Test email sent to ${email}`);
-    } catch {
-      toast.error('Failed to send test email');
-    }
     setActionLoading(null);
   };
 
@@ -187,9 +183,16 @@ export default function AdminUsers() {
                       <td className="px-6 py-4 text-sm text-foreground font-medium">{u.account_count}</td>
                       <td className="px-6 py-4 text-sm text-foreground font-semibold">${u.total_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${u.role === 'admin' ? 'bg-destructive/20 text-destructive' : 'bg-primary/10 text-primary'}`}>
-                          {u.role}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${u.role === 'admin' ? 'bg-destructive/20 text-destructive' : 'bg-primary/10 text-primary'}`}>
+                            {u.role}
+                          </span>
+                          {u.transfers_blocked && (
+                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-destructive/10 text-destructive">
+                              transfers blocked
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">
                         {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -208,23 +211,31 @@ export default function AdminUsers() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            className={`border text-xs h-8 px-2 ${u.transfers_blocked ? 'border-green-600/40 text-green-700 hover:bg-green-600/10' : 'border-destructive/40 text-destructive hover:bg-destructive/10'}`}
+                            onClick={() => toggleTransferBlock(u)}
+                            disabled={actionLoading === u.id + '_block'}
+                          >
+                            {u.transfers_blocked
+                              ? <><CheckCircle className="w-3 h-3 mr-1" />Unblock Transfers</>
+                              : <><ArrowLeftRight className="w-3 h-3 mr-1" />Block Transfers</>}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="border border-border text-xs h-8 px-2"
                             onClick={() => toggleRole(u.id, u.role)}
                             disabled={actionLoading === u.id}
                           >
                             {u.role === 'admin' ? <><Ban className="w-3 h-3 mr-1" />Demote</> : <><UserCog className="w-3 h-3 mr-1" />Promote</>}
                           </Button>
-                          {u.email && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="border border-border text-xs h-8 px-2"
-                              onClick={() => sendEmail(u)}
-                              disabled={actionLoading === u.id + '_email'}
-                            >
-                              <Mail className="w-3 h-3 mr-1" />Email
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="border border-border text-xs h-8 px-2"
+                            onClick={() => navigate(`/admin/messages?to=${u.id}`)}
+                          >
+                            <Mail className="w-3 h-3 mr-1" />Message
+                          </Button>
                         </div>
                       </td>
                     </tr>

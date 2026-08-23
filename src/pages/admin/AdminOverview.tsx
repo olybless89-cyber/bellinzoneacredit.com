@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/db/supabase';
-import { Users, ShieldCheck, ArrowUpRight, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { Users, ShieldCheck, ArrowUpRight, TrendingUp, Clock, AlertCircle, Ban, ArrowLeftRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { getGlobalTransfersBlocked, setGlobalTransfersBlocked } from '@/services/api';
+import { toast } from 'sonner';
 
 interface Stats {
   total_users: number;
@@ -16,8 +19,11 @@ export default function AdminOverview() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [recentUsers, setRecentUsers] = useState<{ id: string; username: string | null; first_name: string | null; created_at: string; role: string }[]>([]);
+  const [globalBlocked, setGlobalBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
 
   useEffect(() => {
+    getGlobalTransfersBlocked().then(setGlobalBlocked);
     const load = async () => {
       const [usersRes, kycRes, txnRes, investRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
@@ -49,6 +55,19 @@ export default function AdminOverview() {
     load().finally(() => setLoading(false));
   }, []);
 
+  const toggleGlobalBlock = async () => {
+    setBlockLoading(true);
+    try {
+      await setGlobalTransfersBlocked(!globalBlocked);
+      setGlobalBlocked(!globalBlocked);
+      toast.success(!globalBlocked ? 'All user transfers are now BLOCKED' : 'Transfers re-enabled for all users');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update transfer setting');
+    } finally {
+      setBlockLoading(false);
+    }
+  };
+
   const cards = stats ? [
     { label: 'Total Users', value: stats.total_users, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { label: 'Pending KYC', value: stats.pending_kyc, icon: ShieldCheck, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
@@ -79,6 +98,32 @@ export default function AdminOverview() {
             </div>
           ))
         }
+      </div>
+
+      {/* Global transfer controls */}
+      <div className={`glass-card rounded-2xl border p-6 flex items-center justify-between gap-4 flex-wrap ${globalBlocked ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
+        <div className="flex items-center gap-4">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${globalBlocked ? 'bg-destructive/20' : 'bg-primary/10'}`}>
+            {globalBlocked ? <Ban className="w-5 h-5 text-destructive" /> : <ArrowLeftRight className="w-5 h-5 text-primary" />}
+          </div>
+          <div>
+            <h2 className="font-bold text-foreground">Transfer Controls</h2>
+            <p className="text-sm text-muted-foreground">
+              {globalBlocked
+                ? 'All outgoing user transfers are currently BLOCKED platform-wide.'
+                : 'Outgoing user transfers are currently enabled platform-wide.'}
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={toggleGlobalBlock}
+          disabled={blockLoading}
+          className={globalBlocked
+            ? 'bg-green-600 hover:bg-green-700 text-white'
+            : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'}
+        >
+          {blockLoading ? 'Updating...' : globalBlocked ? 'Enable Transfers For All' : 'Block Transfers For All Users'}
+        </Button>
       </div>
 
       {/* Recent users */}

@@ -3,10 +3,11 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, Users, ShieldCheck, ArrowUpRight,
-  LogOut, Menu, X, Building2, ChevronRight, CreditCard,
+  LogOut, Menu, X, Building2, ChevronRight, CreditCard, Mail,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import NotificationBell from '@/components/common/NotificationBell';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ const navItems = [
   { path: '/admin/kyc', label: 'KYC Queue', icon: ShieldCheck, end: false },
   { path: '/admin/transactions', label: 'Transactions', icon: ArrowUpRight, end: false },
   { path: '/admin/card-requests', label: 'Card Requests', icon: CreditCard, end: false },
+  { path: '/admin/messages', label: 'Secure Mail', icon: Mail, end: false },
 ];
 
 function NavItems({ onClick }: { onClick?: () => void }) {
@@ -125,16 +127,24 @@ export default function AdminLayout() {
             </div>
             <span className="font-bold text-sm">Admin Portal</span>
           </div>
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-72 p-0 bg-card">
-              <SidebarContent />
-            </SheetContent>
-          </Sheet>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-72 p-0 bg-card">
+                <SidebarContent />
+              </SheetContent>
+            </Sheet>
+          </div>
+        </header>
+
+        {/* Desktop header */}
+        <header className="hidden md:flex items-center justify-end px-8 h-14 border-b border-border bg-card shrink-0 sticky top-0 z-20">
+          <NotificationBell />
         </header>
 
         <main className="flex-1 p-4 md:p-8 overflow-x-hidden">

@@ -1,5 +1,15 @@
 import { supabase } from '@/db/supabase';
-import type { BankAccount, Transaction, Investment, Profile, CardRequest } from '@/types';
+import type { BankAccount, Transaction, Investment, Profile, CardRequest, AppNotification, MailMessage, TransferDetails } from '@/types';
+
+// Tables/columns from migration 00006 may not exist in the live DB yet.
+// Missing-schema errors must degrade gracefully instead of breaking the app.
+function isMissingSchemaError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code === '42P01' || e.code === '42703' || e.code === 'PGRST205' || e.code === 'PGRST204') return true;
+  const msg = (e.message || '').toLowerCase();
+  return msg.includes('does not exist') || msg.includes('could not find') || msg.includes('schema cache');
+}
 
 // ─── Profiles ───────────────────────────────────────────────────────────────
 
@@ -118,8 +128,14 @@ export async function transferFunds(payload: {
   toAccountNumber: string;
   amount: number;
   description?: string;
+  details?: TransferDetails;
+  senderUserId?: string;
 }) {
-  const { fromAccountId, toAccountNumber, amount, description } = payload;
+  const { fromAccountId, toAccountNumber, amount, description, details } = payload;
+
+  // Enforce transfer blocks (per-user + global)
+  const block = await getTransferBlockStatus(payload.senderUserId);
+  if (block.blocked) throw new Error(block.reason || 'Transfers are currently disabled on this account');
 
   // Check sender balance
   const { data: sender, error: senderErr } = await supabase
@@ -138,6 +154,11 @@ export async function transferFunds(payload: {
     .eq('id', fromAccountId);
   if (debitErr) throw debitErr;
 
+  const methodLabels: Record<string, string> = {
+    internal: 'Internal Transfer', ach: 'ACH Transfer', wire: 'Wire Transfer', international: 'International Wire',
+  };
+  const methodLabel = details ? methodLabels[details.method] || 'Fund Transfer' : 'Fund Transfer';
+
   // Record outgoing transaction
   const { error: txErr } = await supabase.from('transactions').insert({
     account_id: fromAccountId,
@@ -145,15 +166,16 @@ export async function transferFunds(payload: {
     status: 'completed',
     amount: -amount,
     currency: sender.currency,
-    description: description || 'Fund Transfer',
+    description: description || `${methodLabel} to ${details?.beneficiaryName || toAccountNumber}`,
     recipient_account: toAccountNumber,
+    metadata: details ? { ...details, method_label: methodLabel } : {},
   });
   if (txErr) throw txErr;
 
   // Credit recipient if internal account
   const { data: recipient } = await supabase
     .from('bank_accounts')
-    .select('id, balance, currency')
+    .select('id, user_id, balance, currency')
     .eq('account_number', toAccountNumber)
     .maybeSingle();
 
@@ -170,6 +192,12 @@ export async function transferFunds(payload: {
       amount,
       currency: recipient.currency,
       description: description || 'Incoming Transfer',
+    });
+
+    notify(recipient.user_id, {
+      title: 'Funds received',
+      body: `Your account ${toAccountNumber} was credited ${sender.currency} ${amount.toFixed(2)} via incoming transfer.`,
+      type: 'transaction',
     });
   }
 
@@ -188,7 +216,7 @@ export async function depositFunds(payload: {
 
   const { data: account, error: accErr } = await supabase
     .from('bank_accounts')
-    .select('balance, currency')
+    .select('balance, currency, user_id')
     .eq('id', accountId)
     .maybeSingle();
   if (accErr || !account) throw new Error('Account not found');
@@ -209,6 +237,12 @@ export async function depositFunds(payload: {
   });
   if (txErr) throw txErr;
 
+  notify(account.user_id, {
+    title: 'Deposit successful',
+    body: `${account.currency} ${amount.toFixed(2)} was deposited into your account. New balance: ${account.currency} ${(account.balance + amount).toFixed(2)}.`,
+    type: 'transaction',
+  });
+
   return { success: true };
 }
 
@@ -225,7 +259,7 @@ export async function withdrawFunds(payload: {
 
   const { data: account, error: accErr } = await supabase
     .from('bank_accounts')
-    .select('balance, currency')
+    .select('balance, currency, user_id')
     .eq('id', accountId)
     .maybeSingle();
   if (accErr || !account) throw new Error('Account not found');
@@ -248,6 +282,12 @@ export async function withdrawFunds(payload: {
   });
   if (txErr) throw txErr;
 
+  notify(account.user_id, {
+    title: 'Withdrawal successful',
+    body: `${account.currency} ${amount.toFixed(2)} was withdrawn from your account. New balance: ${account.currency} ${(account.balance - amount).toFixed(2)}.`,
+    type: 'transaction',
+  });
+
   return { success: true };
 }
 
@@ -263,7 +303,7 @@ export async function adminCreditAccount(payload: {
 
   const { data: account, error: accErr } = await supabase
     .from('bank_accounts')
-    .select('balance, currency')
+    .select('balance, currency, user_id')
     .eq('id', accountId)
     .maybeSingle();
   if (accErr || !account) throw new Error('Account not found');
@@ -283,6 +323,12 @@ export async function adminCreditAccount(payload: {
     description: description || 'Admin Credit',
   });
   if (txErr) throw txErr;
+
+  notify(account.user_id, {
+    title: 'Account credited',
+    body: `${account.currency} ${amount.toFixed(2)} was credited to your account by the bank${description ? ` (${description})` : ''}. New balance: ${account.currency} ${(account.balance + amount).toFixed(2)}.`,
+    type: 'transaction',
+  });
 
   return { success: true };
 }
@@ -382,6 +428,13 @@ export async function updateCardRequestStatus(
     .select('*')
     .maybeSingle();
   if (error) throw error;
+  if (data) {
+    notify(data.user_id, {
+      title: `Card request ${status}`,
+      body: `Your ${data.card_network} ${data.card_type} card request is now ${status}.${notes ? ` Note: ${notes}` : ''}`,
+      type: status === 'completed' ? 'success' : status === 'pending' ? 'info' : 'warning',
+    });
+  }
   return data;
 }
 
@@ -409,4 +462,211 @@ export async function getAllCardRequests(): Promise<(CardRequest & { username: s
     })
   );
   return enriched;
+}
+
+// ─── Transfer Controls (per-user + global block) ─────────────────────────────
+
+export async function getGlobalTransfersBlocked(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'transfers_blocked')
+      .maybeSingle();
+    if (error) {
+      if (isMissingSchemaError(error)) return false;
+      return false;
+    }
+    return data?.value === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function setGlobalTransfersBlocked(blocked: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('site_settings')
+    .upsert({ key: 'transfers_blocked', value: blocked, updated_at: new Date().toISOString() });
+  if (error) {
+    if (isMissingSchemaError(error)) throw new Error('Database migration 00006 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    throw error;
+  }
+}
+
+export async function setUserTransfersBlocked(userId: string, blocked: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ transfers_blocked: blocked })
+    .eq('id', userId);
+  if (error) {
+    if (isMissingSchemaError(error)) throw new Error('Database migration 00006 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    throw error;
+  }
+  notify(userId, {
+    title: blocked ? 'Transfers restricted' : 'Transfers restored',
+    body: blocked
+      ? 'Outgoing transfers from your account have been temporarily disabled. Please contact support for more information.'
+      : 'Outgoing transfers from your account have been re-enabled.',
+    type: 'security',
+  });
+}
+
+export async function getTransferBlockStatus(userId?: string): Promise<{ blocked: boolean; reason: string | null }> {
+  const globalBlocked = await getGlobalTransfersBlocked();
+  if (globalBlocked) {
+    return { blocked: true, reason: 'All outgoing transfers are temporarily suspended by the bank. Please try again later or contact support.' };
+  }
+  if (userId) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('transfers_blocked')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!error && data?.transfers_blocked) {
+      return { blocked: true, reason: 'Transfers from your account are currently restricted. Please contact support.' };
+    }
+  }
+  return { blocked: false, reason: null };
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export async function notify(
+  userId: string,
+  payload: { title: string; body?: string; type?: AppNotification['type']; metadata?: Record<string, unknown> }
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      title: payload.title,
+      body: payload.body || null,
+      type: payload.type || 'info',
+      metadata: payload.metadata || {},
+    });
+    if (error && !isMissingSchemaError(error)) console.warn('notify failed', error);
+  } catch {
+    // notifications are best-effort
+  }
+}
+
+export async function getNotifications(userId: string, limit = 30): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    if (!isMissingSchemaError(error)) console.warn('getNotifications failed', error);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_read', false);
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+  if (error && !isMissingSchemaError(error)) console.warn('markNotificationRead failed', error);
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('is_read', false);
+  if (error && !isMissingSchemaError(error)) console.warn('markAllNotificationsRead failed', error);
+}
+
+// ─── Built-in Mail (website's own message system) ────────────────────────────
+
+export async function getAdminProfiles(): Promise<{ id: string; first_name: string | null; last_name: string | null; username: string | null }[]> {
+  // public_profiles is an RLS-bypassing view readable by everyone
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select('id, first_name, last_name, username')
+    .eq('role', 'admin');
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getInbox(userId: string): Promise<MailMessage[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('recipient_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    if (!isMissingSchemaError(error)) console.warn('getInbox failed', error);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getSentMessages(userId: string): Promise<MailMessage[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('sender_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    if (!isMissingSchemaError(error)) console.warn('getSentMessages failed', error);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function getUnreadMessageCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_id', userId)
+    .eq('is_read', false);
+  if (error) return 0;
+  return count || 0;
+}
+
+export async function sendMailMessage(payload: {
+  senderId: string;
+  recipientId: string;
+  subject: string;
+  body: string;
+}): Promise<void> {
+  const { error } = await supabase.from('messages').insert({
+    sender_id: payload.senderId,
+    recipient_id: payload.recipientId,
+    subject: payload.subject,
+    body: payload.body,
+  });
+  if (error) {
+    if (isMissingSchemaError(error)) throw new Error('Database migration 00006 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    throw error;
+  }
+  notify(payload.recipientId, {
+    title: `New message: ${payload.subject}`,
+    body: 'You have a new secure message. Open Messages to read it.',
+    type: 'message',
+  });
+}
+
+export async function markMessageRead(id: string): Promise<void> {
+  const { error } = await supabase.from('messages').update({ is_read: true }).eq('id', id);
+  if (error && !isMissingSchemaError(error)) console.warn('markMessageRead failed', error);
+}
+
+// Admin: fetch profiles for the recipient picker / name resolution
+export async function getProfilesByIds(ids: string[]): Promise<Profile[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from('profiles').select('*').in('id', ids);
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
 }

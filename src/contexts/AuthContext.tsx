@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '@/db/supabase';
+import { notify } from '@/services/api';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Profile } from '@/types';
 
@@ -39,10 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s); setUser(s?.user ?? null);
-      if (s?.user) fetchProfileById(s.user.id).then(setProfile);
-      else setProfile(null);
+      if (s?.user) {
+        fetchProfileById(s.user.id).then(setProfile);
+        if (event === 'SIGNED_IN') {
+          notify(s.user.id, {
+            title: 'New sign-in detected',
+            body: `Your account was signed in on ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. If this was not you, contact support immediately.`,
+            type: 'security',
+          });
+        }
+      } else setProfile(null);
     });
     return () => subscription.unsubscribe();
   }, []);
