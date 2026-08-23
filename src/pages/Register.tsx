@@ -48,9 +48,10 @@ export default function RegisterPage() {
     };
     const frontUrl = frontFile ? await upload(frontFile, 'front') : null;
     const backUrl = backFile ? await upload(backFile, 'back') : null;
-    await supabase.from('kyc_documents').insert({
+    const { error } = await supabase.from('kyc_documents').insert({
       user_id: userId, id_card_type: form.id_card_type, front_url: frontUrl, back_url: backUrl,
     });
+    if (error) throw error;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,9 +83,18 @@ export default function RegisterPage() {
       });
       if (signUpErr) throw signUpErr;
 
+      if (authData.user && !authData.session) {
+        // Email confirmation is still enabled on the Supabase project — the
+        // signup succeeded but there is no session, so RLS would silently
+        // block profile/account/KYC writes. Tell the user what to do.
+        toast.warning('Account created, but email confirmation is still enabled on the server. Ask the admin to disable "Confirm email" in Supabase, then sign in and complete your profile & KYC from the dashboard.', { duration: 10000 });
+        navigate('/login');
+        return;
+      }
+
       if (authData.user) {
         // Update profile with full contact info + username
-        await supabase.from('profiles').update({
+        const { error: profileErr } = await supabase.from('profiles').update({
           email: form.email,
           phone: form.phone,
           first_name: form.fname,
@@ -95,9 +105,10 @@ export default function RegisterPage() {
           country: form.country,
           login_pin: form.login_pin,
         }).eq('id', authData.user.id);
+        if (profileErr) throw profileErr;
 
         // Create bank account
-        const { data: newAccount } = await supabase.from('bank_accounts').insert({
+        const { data: newAccount, error: accountErr } = await supabase.from('bank_accounts').insert({
           user_id: authData.user.id,
           account_type: form.account_type,
           currency: form.currency,
@@ -105,9 +116,16 @@ export default function RegisterPage() {
           apy: form.account_type === 'savings' ? 4.85 : form.account_type === 'fixed' ? 5.40 : 0,
           balance: 0,
         }).select('account_number').maybeSingle();
+        if (accountErr) throw accountErr;
 
-        // KYC upload
-        if (frontFile || backFile) await uploadKyc(authData.user.id);
+        // KYC upload — surfaced, not silent
+        if (frontFile || backFile) {
+          try {
+            await uploadKyc(authData.user.id);
+          } catch {
+            toast.warning('Account created, but your ID documents could not be uploaded. After signing in, resubmit them from Profile → Identity Verification.', { duration: 8000 });
+          }
+        }
 
         // Send welcome email (non-blocking)
         supabase.functions.invoke('send-email', {
@@ -123,7 +141,7 @@ export default function RegisterPage() {
           },
         }).catch(() => null);
       }
-      toast.success('Account created! Check your email, then sign in.');
+      toast.success('Account created! Sign in with your email and 4-digit PIN.');
       navigate('/login');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed';

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { ArrowUpRight, Ban, Eye, EyeOff, Info, KeyRound, Landmark, MailWarning, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowUpRight, Ban, Eye, EyeOff, Info, KeyRound, Landmark, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,7 +10,7 @@ import type { BankAccount, TransferMethod } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type Stage = 'form' | 'confirm' | 'pin' | 'tpin' | 'cot';
+type Stage = 'form' | 'confirm' | 'pin' | 'tpin';
 
 const METHODS: { value: TransferMethod; label: string; eta: string; fee: number }[] = [
   { value: 'internal', label: 'Internal Transfer (within Bellinzone A Credit)', eta: 'Instant', fee: 0 },
@@ -95,10 +95,6 @@ export default function TransferPage() {
   const [showTpin, setShowTpin] = useState(false);
   const [tpinError, setTpinError] = useState('');
 
-  // COT state
-  const [cot, setCot] = useState('');
-  const [cotError, setCotError] = useState('');
-
   useEffect(() => {
     if (!user) return;
     Promise.all([
@@ -168,7 +164,7 @@ export default function TransferPage() {
     setStage('tpin');
   };
 
-  // Step 4: transfer PIN — verify existing, or create one on first use → COT stage
+  // Step 4: transfer PIN — verify existing, or create one on first use → execute transfer
   const handleTpinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -206,26 +202,6 @@ export default function TransferPage() {
       }
     }
     setTpinError('');
-    setStage('cot');
-  };
-
-  // Step 5: verify COT code → execute transfer
-  const handleCotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const enteredCot = cot.trim().toUpperCase();
-    if (!enteredCot) { setCotError('Enter your COT code'); return; }
-
-    if (!profile?.cot_code) {
-      setCotError('No COT code has been issued for your account yet. Request one from support via Secure Mail.');
-      return;
-    }
-    if (profile.cot_code.trim().toUpperCase() !== enteredCot) {
-      setCotError('Invalid COT code. Check the code sent by the bank and try again.');
-      setCot('');
-      return;
-    }
-
-    setCotError('');
     setSubmitting(true);
     try {
       await transferFunds({
@@ -267,13 +243,13 @@ export default function TransferPage() {
   const labelCls = 'block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2';
   const inputCls = 'bg-white border-border shadow-sm h-12';
 
-  const stepIndex = { form: 1, confirm: 2, pin: 3, tpin: 3, cot: 3 }[stage];
+  const stepIndex = { form: 1, confirm: 2, pin: 3, tpin: 3 }[stage];
 
   return (
     <div className="max-w-xl space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold text-foreground">Fund Transfer</h1>
-        <p className="text-muted-foreground text-sm mt-1">Send money securely — verified with your login PIN, transfer PIN and COT code</p>
+        <p className="text-muted-foreground text-sm mt-1">Send money securely — verified with your login PIN and transfer PIN</p>
       </div>
 
       {/* Step indicator */}
@@ -583,64 +559,6 @@ export default function TransferPage() {
             </form>
           )}
 
-          {/* ── STAGE 3c: COT code ── */}
-          {stage === 'cot' && (
-            <form onSubmit={handleCotSubmit} className="glass-card rounded-2xl p-8 border border-border space-y-6 text-center">
-              <div>
-                <div className="w-14 h-14 rounded-full bg-primary/10 border-4 border-primary/30 flex items-center justify-center mx-auto mb-4">
-                  <MailWarning className="w-7 h-7 text-primary" />
-                </div>
-                <h2 className="text-xl font-extrabold text-foreground">Cost of Transfer (COT) Code</h2>
-                <p className="text-muted-foreground text-sm mt-1">
-                  Step 3 of 3 — enter the COT code issued by the bank to authorize this transfer of{' '}
-                  <span className="font-semibold text-foreground">
-                    {fromAccount?.currency} {totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </p>
-              </div>
-
-              {profile?.cot_code ? (
-                <div>
-                  <Input
-                    placeholder="e.g. X7K9P2QD"
-                    value={cot}
-                    onChange={(e) => { setCot(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)); setCotError(''); }}
-                    className="bg-white border-border shadow-sm h-14 text-center text-xl font-mono tracking-[0.3em] font-bold max-w-xs mx-auto"
-                    autoFocus
-                  />
-                  {cotError && <p className="text-xs text-destructive mt-2">{cotError}</p>}
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Your COT code was sent to you via Secure Mail.{' '}
-                    <Link to="/dashboard/messages" className="text-primary font-semibold hover:underline">Open Secure Mail</Link>
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-5 text-left space-y-3">
-                  <p className="text-sm text-foreground font-semibold">No COT code issued yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    A Cost of Transfer code is required to complete outgoing transfers. Request your COT code from
-                    customer support — it will be delivered to you via Secure Mail.
-                  </p>
-                  <Link to="/dashboard/messages">
-                    <Button type="button" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                      Request COT Code via Secure Mail
-                    </Button>
-                  </Link>
-                </div>
-              )}
-
-              <div className="flex flex-col gap-3">
-                {profile?.cot_code && (
-                  <Button type="submit" disabled={submitting || !cot.trim()} className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 text-base">
-                    {submitting ? 'Processing...' : 'Confirm & Send'}
-                  </Button>
-                )}
-                <Button type="button" variant="ghost" onClick={() => { setStage('tpin'); setCot(''); setCotError(''); }} className="w-full border border-border text-muted-foreground">
-                  ← Back
-                </Button>
-              </div>
-            </form>
-          )}
         </>
       )}
     </div>

@@ -68,3 +68,9 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - **Profile page**: real KYC status (latest kyc_documents row, replaces hardcoded "Pending Review") + KYC submit/resubmit card (ID type + front/back upload → insert kyc_documents) + functional Change Login PIN form (current PIN gate, 4-digit, confirm).
 - **Admin PIN management**: Security Codes dialog (Issue COT) now has 3 sections — COT code, transfer PIN reset, login PIN reset (`setUserLoginPin` in api.ts, notifies user).
 - Verified live: KYC pending→approved (admin notified, profile Verified), user PIN change 1234→4321, admin reset back to 1234.
+
+## Update (2026-08-23c) — COT removed, admin user deletion, registration hardening
+- **COT code fully removed** from transfer flow (Transfer stage type/JSX), admin Security Codes dialog, Profile security section, api.ts (`generateCotCode`/`setUserCotCode` deleted), and Profile type. Transfers now require login PIN → transfer PIN only.
+- **Admin Delete User**: `adminDeleteUser` rpc in api.ts + red Delete button on Users page (type DELETE to confirm; blocks self/admin deletion; cascades auth.users → profiles → all data; storage objects cleaned explicitly). Backed by **migration 00010** `admin_delete_user(uuid)` security-definer function — needs to be pasted in the SQL Editor; UI degrades gracefully with a "migration 00010 not applied" toast.
+- **Registration bug (no KYC/account)**: root cause found — Supabase "Confirm email" still ON → `signUp` returns no session → RLS silently blocks profile/bank_account/KYC writes. Register.tsx now detects the no-session case (warning toast) and surfaces KYC insert errors with fallback guidance. **User must disable Supabase Auth → Providers → Email → "Confirm email"** for registration to fully work; the `authData.user &&` guard also fixes the broken redirect to pages.dev confusion.
+- Users list action column now wraps (flex-wrap) so all 6 buttons fit.

@@ -1,14 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
-import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle, ArrowLeftRight, KeyRound, RefreshCw, Send } from 'lucide-react';
+import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle, ArrowLeftRight, KeyRound, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { Profile, BankAccount } from '@/types';
-import { adminCreditAccount, generateCotCode, sendMailMessage, setUserCotCode, setUserLoginPin, setUserTransfersBlocked, setUserTransferPin } from '@/services/api';
+import { adminCreditAccount, adminDeleteUser, setUserLoginPin, setUserTransfersBlocked, setUserTransferPin } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UserWithAccounts extends Profile {
@@ -26,18 +26,38 @@ export default function AdminUsers() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Security codes (COT / transfer PIN) dialog state
+  // Security codes (transfer PIN / login PIN) dialog state
   const [codesUser, setCodesUser] = useState<UserWithAccounts | null>(null);
-  const [cotInput, setCotInput] = useState('');
   const [tpinInput, setTpinInput] = useState('');
   const [lpinInput, setLpinInput] = useState('');
   const [codesLoading, setCodesLoading] = useState(false);
 
   const openCodes = (u: UserWithAccounts) => {
     setCodesUser(u);
-    setCotInput(u.cot_code || '');
     setTpinInput('');
     setLpinInput('');
+  };
+
+  // Delete user state
+  const [deleteUser, setDeleteUser] = useState<UserWithAccounts | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDeleteUser = async () => {
+    if (!deleteUser) return;
+    if (deleteConfirmText !== 'DELETE') { toast.error('Type DELETE to confirm'); return; }
+    setDeleting(true);
+    try {
+      await adminDeleteUser(deleteUser.id);
+      toast.success(`Deleted ${deleteUser.first_name || deleteUser.username || deleteUser.email}`);
+      setDeleteUser(null);
+      setDeleteConfirmText('');
+      loadUsers();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const resetLoginPin = async (e: React.FormEvent) => {
@@ -52,42 +72,6 @@ export default function AdminUsers() {
       toast.success('Login PIN reset');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to reset login PIN');
-    } finally {
-      setCodesLoading(false);
-    }
-  };
-
-  const saveCot = async (code: string) => {
-    if (!codesUser) return;
-    if (!/^[A-Z0-9]{6,12}$/.test(code)) { toast.error('COT code must be 6–12 letters/digits'); return; }
-    setCodesLoading(true);
-    try {
-      await setUserCotCode(codesUser.id, code);
-      setCodesUser({ ...codesUser, cot_code: code });
-      toast.success(`COT code saved for ${codesUser.first_name || codesUser.username || codesUser.email}`);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save COT code');
-    } finally {
-      setCodesLoading(false);
-    }
-  };
-
-  const sendCotByMail = async () => {
-    if (!codesUser || !adminUser) return;
-    const code = codesUser.cot_code;
-    if (!code) { toast.error('Save a COT code first'); return; }
-    setCodesLoading(true);
-    try {
-      const name = codesUser.first_name || codesUser.username || 'Customer';
-      await sendMailMessage({
-        senderId: adminUser.id,
-        recipientId: codesUser.id,
-        subject: 'Your Cost of Transfer (COT) Code',
-        body: `Dear ${name},\n\nYour Cost of Transfer (COT) code is: ${code}\n\nYou will need this code to authorize outgoing transfers from your account. Keep it confidential and do not share it with anyone.\n\nIf you did not request this code, please contact support immediately.\n\n— Bellinzone A Credit Support`,
-      });
-      toast.success('COT code sent via Secure Mail');
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send COT code');
     } finally {
       setCodesLoading(false);
     }
@@ -284,7 +268,7 @@ export default function AdminUsers() {
                         {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 max-w-md">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -325,10 +309,19 @@ export default function AdminUsers() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className={`border text-xs h-8 px-2 ${u.cot_code ? 'border-green-600/40 text-green-700 hover:bg-green-600/10' : 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10'}`}
+                            className="border border-primary/30 text-primary hover:bg-primary/10 text-xs h-8 px-2"
                             onClick={() => openCodes(u)}
                           >
-                            <KeyRound className="w-3 h-3 mr-1" />{u.cot_code ? 'COT Issued' : 'Issue COT'}
+                            <KeyRound className="w-3 h-3 mr-1" />PINs
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="border border-red-500/40 text-red-500 hover:bg-red-500/10 text-xs h-8 px-2"
+                            onClick={() => setDeleteUser(u)}
+                            disabled={actionLoading === u.id}
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" />Delete
                           </Button>
                         </div>
                       </td>
@@ -396,38 +389,8 @@ export default function AdminUsers() {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* COT code */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">COT Code (required for transfers)</label>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${codesUser?.cot_code ? 'bg-green-600/10 text-green-700' : 'bg-muted text-muted-foreground'}`}>
-                  {codesUser?.cot_code ? 'Issued' : 'Not issued'}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={cotInput}
-                  onChange={(e) => setCotInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
-                  placeholder="e.g. X7K9P2QD"
-                  className="bg-white border-border h-11 font-mono tracking-[0.2em]"
-                />
-                <Button type="button" variant="ghost" onClick={() => setCotInput(generateCotCode())} disabled={codesLoading} className="border border-border h-11 shrink-0" title="Generate random code">
-                  <RefreshCw className="w-4 h-4" />
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" onClick={() => saveCot(cotInput)} disabled={codesLoading || !cotInput} className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 flex-1">
-                  {codesLoading ? 'Saving...' : 'Save COT Code'}
-                </Button>
-                <Button type="button" onClick={sendCotByMail} disabled={codesLoading || !codesUser?.cot_code} className="border border-primary/30 text-primary hover:bg-primary/10 h-10 flex-1" variant="ghost">
-                  <Send className="w-3.5 h-3.5 mr-1.5" />Send via Mail
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">Save the code, then send it to the user through the built-in Secure Mail.</p>
-            </div>
-
             {/* Transfer PIN reset */}
-            <form onSubmit={resetTransferPin} className="space-y-3 pt-4 border-t border-border">
+            <form onSubmit={resetTransferPin} className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transfer PIN</label>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${codesUser?.transfer_pin ? 'bg-green-600/10 text-green-700' : 'bg-muted text-muted-foreground'}`}>
@@ -479,6 +442,46 @@ export default function AdminUsers() {
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => { setCodesUser(null); loadUsers(); }} className="border border-border">Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User confirmation dialog */}
+      <Dialog open={!!deleteUser} onOpenChange={(open) => { if (!open) { setDeleteUser(null); setDeleteConfirmText(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-500">Delete User — {deleteUser?.first_name || deleteUser?.username || 'User'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-red-500/40 bg-red-500/5 p-4 text-sm text-muted-foreground space-y-2">
+              <p className="font-semibold text-foreground">This permanently deletes:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>The user's login and profile ({deleteUser?.email})</li>
+                <li>All bank accounts and transaction history</li>
+                <li>KYC documents, notifications and Secure Mail</li>
+              </ul>
+              <p className="font-semibold text-red-500">This cannot be undone.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Type DELETE to confirm</label>
+              <Input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="bg-white border-border h-11 font-mono tracking-[0.2em]"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="ghost" onClick={() => { setDeleteUser(null); setDeleteConfirmText(''); }} className="border border-border">Cancel</Button>
+            <Button
+              type="button"
+              onClick={confirmDeleteUser}
+              disabled={deleting || deleteConfirmText !== 'DELETE'}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />{deleting ? 'Deleting...' : 'Delete User'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

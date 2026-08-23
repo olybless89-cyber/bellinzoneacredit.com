@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { setUserLoginPin, setUserTransferPin, updateProfile } from '@/services/api';
 import { toast } from 'sonner';
-import { User, Shield, CreditCard, KeyRound, MailWarning, Upload, Check, FileBadge } from 'lucide-react';
+import { User, Shield, CreditCard, KeyRound, Upload, Check, FileBadge } from 'lucide-react';
 import type { KycStatus } from '@/types';
 
 const KYC_BADGE: Record<KycStatus, { label: string; className: string }> = {
@@ -391,20 +391,6 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* COT status — admin-issued, read-only for the user */}
-        <div className="flex items-center justify-between py-3">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <MailWarning className="w-3.5 h-3.5 text-primary" /> COT Code
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {profile?.cot_code ? 'Issued — check Secure Mail for your code' : 'Not issued — request from support via Secure Mail'}
-            </div>
-          </div>
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${profile?.cot_code ? 'bg-green-600/10 text-green-700' : 'bg-muted text-muted-foreground'}`}>
-            {profile?.cot_code ? 'Active' : 'None'}
-          </span>
-        </div>
       </div>
     </div>
   );

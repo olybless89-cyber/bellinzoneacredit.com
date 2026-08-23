@@ -511,7 +511,7 @@ export async function setUserTransfersBlocked(userId: string, blocked: boolean):
   });
 }
 
-// ─── Transfer PIN & COT code ─────────────────────────────────────────────────
+// ─── Login & transfer PINs ──────────────────────────────────────────────────
 
 export async function setUserLoginPin(userId: string, pin: string): Promise<void> {
   const { error } = await supabase
@@ -542,28 +542,13 @@ export async function setUserTransferPin(userId: string, pin: string): Promise<v
   });
 }
 
-export function generateCotCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
-}
-
-export async function setUserCotCode(userId: string, cot: string | null): Promise<void> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ cot_code: cot })
-    .eq('id', userId);
+// Permanently delete a user (auth user + profile + all related data).
+// Backed by the admin_delete_user Postgres function (migration 00010).
+export async function adminDeleteUser(userId: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_user', { target_user_id: userId });
   if (error) {
-    if (isMissingSchemaError(error)) throw new Error('Database migration 00009 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    if (isMissingSchemaError(error)) throw new Error('Database migration 00010 has not been applied yet. Run it in the Supabase SQL Editor first.');
     throw error;
-  }
-  if (cot) {
-    notify(userId, {
-      title: 'COT code issued',
-      body: 'A Cost of Transfer (COT) code has been issued for your account. Check Secure Mail for details — you will need it to complete transfers.',
-      type: 'security',
-    });
   }
 }
 

@@ -29,7 +29,6 @@ export interface Profile {
   avatar_url: string | null;
   transfers_blocked?: boolean;
   transfer_pin?: string | null;
-  cot_code?: string | null;
   created_at: string;
   updated_at: string;
 }
