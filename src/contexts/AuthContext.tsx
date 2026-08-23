@@ -34,26 +34,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s); setUser(s?.user ?? null);
-      if (s?.user) fetchProfileById(s.user.id).then(setProfile).finally(() => setLoading(false));
-      else setLoading(false);
-    });
+    let active = true;
+
+    // The onAuthStateChange callback must not await Supabase calls (client
+    // internals hold a lock during dispatch — awaiting there deadlocks), so
+    // session + profile hydration happens here, driven by auth events.
+    const hydrate = async (s: Session | null) => {
+      if (!active) return;
+      setSession(s);
+      setUser(s?.user ?? null);
+      if (s?.user) {
+        const p = await fetchProfileById(s.user.id);
+        if (active) setProfile(p);
+      } else if (active) {
+        setProfile(null);
+      }
+      if (active) setLoading(false);
+    };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s); setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchProfileById(s.user.id).then(setProfile);
-        if (event === 'SIGNED_IN') {
-          notify(s.user.id, {
-            title: 'New sign-in detected',
-            body: `Your account was signed in on ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. If this was not you, contact support immediately.`,
-            type: 'security',
-          });
-        }
-      } else setProfile(null);
+      void hydrate(s);
+      if (event === 'SIGNED_IN' && s?.user) {
+        notify(s.user.id, {
+          title: 'New sign-in detected',
+          body: `Your account was signed in on ${new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}. If this was not you, contact support immediately.`,
+          type: 'security',
+        });
+      }
     });
-    return () => subscription.unsubscribe();
+
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
   const signOut = async () => { await supabase.auth.signOut(); setProfile(null); };

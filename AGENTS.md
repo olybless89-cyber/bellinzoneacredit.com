@@ -14,13 +14,13 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - Build: `node_modules/.bin/vite build` (package.json `build`/`dev` are intentionally disabled stubs)
 - Type check: `npx tsgo -p tsconfig.check.json`
 
-## Supabase (LIVE backend — shared with source project)
-- URL: https://qkfhunhqvwzuvrcoevze.supabase.co (from .env `VITE_SUPABASE_URL`)
-- Anon key in .env `VITE_SUPABASE_ANON_KEY` (public client key, RLS-protected)
-- All 4 migrations ALREADY applied. `send-email` edge function NOT deployed (404) — email sends fail silently (.catch'd).
-- Seeded admin EXISTS: `admin@skybordbank.com` / password `skb_1234` (UID 87a50ec5-5112-4b21-b5c2-2104e4bc3f40, role admin).
-- Existing test user: `milljohnson75@gmail.com` (UID 2c0822d0-cd51-4afc-9129-67c72d62866e), account SKB3870327296, balance 0.
-- No service_role key available — cannot run new SQL migrations or seed via service role. New migrations are additive (functions/policies) and would need manual apply in Supabase dashboard OR are purely client-side.
+## Supabase (LIVE backend — NEW project, 2026-08-23)
+- URL: https://fjrobpbmvjsjgfucoyht.supabase.co (from .env `VITE_SUPABASE_URL`). Old project `qkfhunhqvwzuvrcoevze` is ABANDONED.
+- Anon key in .env `VITE_SUPABASE_ANON_KEY` (public client key, RLS-protected).
+- Migrations 00001–00006 APPLIED (user ran SQL in dashboard). `send-email` edge function NOT deployed — built-in `messages` mail used instead.
+- Admin EXISTS: `admin@skybordbank.com` / PIN `1234` (UID 6531c6a7-2d4a-4a7f-9cc7-58ca2f275d74, role admin). Created via service-role API + `handle_new_user` trigger.
+- **RLS gotcha**: an early admin-bootstrap script left a profiles policy with a raw `(SELECT role FROM profiles ...)` subquery → Postgres error 42P17 "infinite recursion" on ALL profile reads (kills login/profile load). Migration `00008_fix_profile_policy_recursion.sql` rewrites all profiles/admin policies to the SECURITY DEFINER `get_my_role()` helper. MUST be applied in SQL Editor.
+- `00007_new_project_gapfill.sql` (kyc_submissions, card_requests, audit_logs) and `00008` need manual apply in SQL Editor; then run `NOTIFY pgrst, 'reload schema';`.
 
 ## Features (post-rebuild additions)
 - Deposit: user deposits funds into own account (deposit txn + balance increment).
@@ -39,11 +39,12 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - index.html had `lang="zh-CN"` — fixed to `en`.
 
 ## Current State (2026-08-23)
-- Rebranded + new features built, verified end-to-end against live Supabase, and pushed to `bellinzoneacredit.com` main.
-- Verified live (REST + browser UI): login (user+admin), deposit, withdrawal, admin add-balance, new detailed transfer flow ($5 internal transfer with beneficiary details).
-- Migration `00005_rebrand_and_card_requests.sql` written but **NOT APPLIED** to live DB (needs service_role key). Debit card *ordering* returns 404 until applied; the page UI + admin approval UI work and degrade gracefully.
-- Migration `00006_transfers_notifications_mail.sql` written but **NOT APPLIED** to live DB. Until applied: transfer blocking, notifications bell, and built-in mail UI all render but degrade gracefully (blocks read as "not blocked"; notifications/messages return empty; write attempts show a toast telling admin to apply migration 00006).
-- Build clean (`vite build`), `tsgo` + `biome lint` pass.
+- App pointed at NEW Supabase project `fjrobpbmvjsjgfucoyht` (`.env` updated). Old project deprecated.
+- Verified on new backend: admin login → dashboard loads; sign-in notification written to `notifications` (bell shows unread).
+- AuthContext hardened: `onAuthStateChange` no longer awaits Supabase calls (client-internal lock would deadlock); session+profile hydrate in a deferred handler. Fixes login redirect race on hard refresh.
+- **Blocked on 42P17 profile-policy recursion** (see Supabase section): login succeeds but profile load fails → admin portal redirects to /login. Fix = run `00008_fix_profile_policy_recursion.sql` in SQL Editor, then `NOTIFY pgrst, 'reload schema';`.
+- Also pending manual apply: `00007_new_project_gapfill.sql` (kyc_submissions, card_requests, audit_logs → currently 404).
+- Build clean (`vite build`), `tsgo` passes.
 
 ## Feature model (added 2026-08-23)
 - **Transfers**: full beneficiary form (name, account/IBAN, bank, routing (9-digit ABA), SWIFT for international), 4 methods (internal/ACH/wire/international) with fees + ETA, review screen, login-PIN verification only (NO COT code, NO separate transfer PIN). Details stored in `transactions.metadata` jsonb (works without migration).
@@ -52,10 +53,10 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - **Notifications** (`notifications` table): bell (`NotificationBell`) in DashboardLayout + AdminLayout headers, 20s polling. Fired on: sign-in, deposit, withdrawal, transfer sent/received, admin credit, card status change, new message, transfer block/unblock. All notification writes are best-effort and silently no-op if the table is missing.
 - `send-email` edge function calls removed from Transfer/AdminUsers (function was never deployed, 404).
 
-## Deployment Blockers (need user credentials)
-1. **Supabase service_role key** — to apply migrations 00005 + 00006. Apply via Supabase Dashboard → SQL Editor (paste file contents, run 00005 first), or `supabase db push` with DB access.
-2. **Railway token** — to deploy manually (CLI not installed in env). Repo is Railway-ready (Dockerfile + nixpacks.toml); pushing to GitHub `main` auto-deploys if the Railway project is connected to the repo. Set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` as Railway env vars.
+## Deployment Blockers (need user action)
+1. **Apply migrations 00007 + 00008** in the NEW project's Supabase Dashboard → SQL Editor (paste file contents; run 00007 then 00008), then run `NOTIFY pgrst, 'reload schema';`. Without 00008 the app cannot read profiles (42P17 recursion) and admin portal is unreachable.
+2. **Railway env vars**: ensure the Railway project has `VITE_SUPABASE_URL=https://fjrobpbmvjsjgfucoyht.supabase.co` + the NEW anon key (from `.env`). Pushing to GitHub `main` auto-deploys if Railway is connected to the repo.
 
-## Test Credentials (live Supabase)
+## Test Credentials (live Supabase, new project)
 - Admin: `admin@skybordbank.com` / PIN `1234`
-- User: `milljohnson75@gmail.com` / PIN `2356` (account SKB3870327296)
+- (No test user on the new project yet — register via /register)
