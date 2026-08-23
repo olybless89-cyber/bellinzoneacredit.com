@@ -89,3 +89,4 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - AdminKYC now surfaces query errors with a toast (was: silent empty list on error).
 - **Migration 00010 NOT live**: `admin_delete_user` rpc returns PGRST202 (not in schema cache) — needs SQL Editor apply + `NOTIFY pgrst, 'reload schema';`. Admin Delete User button won't work until then.
 - Storage: no admin DELETE policy on storage.objects (admin delete of KYC files is 403 via REST; security-definer functions bypass this). Orphaned files are harmless.
+- **Migration 00010 APPLIED (2026-08-23)** — `admin_delete_user` rpc live; Admin → Users Delete button works (cascades auth.users → all data + KYC storage files; blocks self/admin deletion).
