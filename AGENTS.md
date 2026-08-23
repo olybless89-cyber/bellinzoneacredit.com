@@ -42,8 +42,8 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - App pointed at NEW Supabase project `fjrobpbmvjsjgfucoyht` (`.env` updated). Old project deprecated.
 - Verified on new backend: admin login → dashboard loads; sign-in notification written to `notifications` (bell shows unread).
 - AuthContext hardened: `onAuthStateChange` no longer awaits Supabase calls (client-internal lock would deadlock); session+profile hydrate in a deferred handler. Fixes login redirect race on hard refresh.
-- **Blocked on 42P17 profile-policy recursion** (see Supabase section): login succeeds but profile load fails → admin portal redirects to /login. Fix = run `00008_fix_profile_policy_recursion.sql` in SQL Editor, then `NOTIFY pgrst, 'reload schema';`.
-- Also pending manual apply: `00007_new_project_gapfill.sql` (kyc_submissions, card_requests, audit_logs → currently 404).
+- 42P17 profile-policy recursion FIXED — combined 00007+00008 script applied in SQL Editor (2026-08-23). Admin portal verified working: login → /admin loads (Overview metrics, Transfer Controls, Secure Mail, notification bell).
+- All migrations applied (00001–00008). All tables return 200 on REST API.
 - Build clean (`vite build`), `tsgo` passes.
 
 ## Feature model (added 2026-08-23)
