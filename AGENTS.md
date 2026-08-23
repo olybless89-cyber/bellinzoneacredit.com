@@ -62,3 +62,9 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 ## Test Credentials (live Supabase, new project)
 - Admin: `admin@skybordbank.com` / PIN `1234`
 - (No test user on the new project yet — register via /register)
+
+## Update (2026-08-23b) — KYC + login PIN fixes
+- **KYC fixed end-to-end**: live `kyc_documents` table has both `notes` AND `admin_notes` columns (drift from migration 00001 — has no `doc_type`). AdminKYC now writes `notes` (not admin_notes), shows ID images via `storage.createSignedUrl` (bucket `kyc_documents` is PRIVATE — raw paths never render as img src). KycDocument type: `admin_notes` removed.
+- **Profile page**: real KYC status (latest kyc_documents row, replaces hardcoded "Pending Review") + KYC submit/resubmit card (ID type + front/back upload → insert kyc_documents) + functional Change Login PIN form (current PIN gate, 4-digit, confirm).
+- **Admin PIN management**: Security Codes dialog (Issue COT) now has 3 sections — COT code, transfer PIN reset, login PIN reset (`setUserLoginPin` in api.ts, notifies user).
+- Verified live: KYC pending→approved (admin notified, profile Verified), user PIN change 1234→4321, admin reset back to 1234.

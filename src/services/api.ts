@@ -513,6 +513,19 @@ export async function setUserTransfersBlocked(userId: string, blocked: boolean):
 
 // ─── Transfer PIN & COT code ─────────────────────────────────────────────────
 
+export async function setUserLoginPin(userId: string, pin: string): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ login_pin: pin })
+    .eq('id', userId);
+  if (error) throw error;
+  notify(userId, {
+    title: 'Login PIN changed',
+    body: 'Your login PIN was changed. If this was not you, contact support immediately.',
+    type: 'security',
+  });
+}
+
 export async function setUserTransferPin(userId: string, pin: string): Promise<void> {
   const { error } = await supabase
     .from('profiles')

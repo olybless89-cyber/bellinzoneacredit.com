@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { Profile, BankAccount } from '@/types';
-import { adminCreditAccount, generateCotCode, sendMailMessage, setUserCotCode, setUserTransfersBlocked, setUserTransferPin } from '@/services/api';
+import { adminCreditAccount, generateCotCode, sendMailMessage, setUserCotCode, setUserLoginPin, setUserTransfersBlocked, setUserTransferPin } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UserWithAccounts extends Profile {
@@ -30,12 +30,31 @@ export default function AdminUsers() {
   const [codesUser, setCodesUser] = useState<UserWithAccounts | null>(null);
   const [cotInput, setCotInput] = useState('');
   const [tpinInput, setTpinInput] = useState('');
+  const [lpinInput, setLpinInput] = useState('');
   const [codesLoading, setCodesLoading] = useState(false);
 
   const openCodes = (u: UserWithAccounts) => {
     setCodesUser(u);
     setCotInput(u.cot_code || '');
     setTpinInput('');
+    setLpinInput('');
+  };
+
+  const resetLoginPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!codesUser) return;
+    if (!/^\d{4}$/.test(lpinInput)) { toast.error('Login PIN must be exactly 4 digits'); return; }
+    setCodesLoading(true);
+    try {
+      await setUserLoginPin(codesUser.id, lpinInput);
+      setCodesUser({ ...codesUser, login_pin: lpinInput });
+      setLpinInput('');
+      toast.success('Login PIN reset');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset login PIN');
+    } finally {
+      setCodesLoading(false);
+    }
   };
 
   const saveCot = async (code: string) => {
@@ -430,6 +449,31 @@ export default function AdminUsers() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">The user is notified by notification whenever their transfer PIN changes.</p>
+            </form>
+
+            {/* Login PIN reset */}
+            <form onSubmit={resetLoginPin} className="space-y-3 pt-4 border-t border-border">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Login PIN</label>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${codesUser?.login_pin ? 'bg-green-600/10 text-green-700' : 'bg-muted text-muted-foreground'}`}>
+                  {codesUser?.login_pin ? 'Set' : 'Not set'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={lpinInput}
+                  onChange={(e) => setLpinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="New 4-digit PIN"
+                  className="bg-white border-border h-11 text-center tracking-[0.3em]"
+                />
+                <Button type="submit" disabled={codesLoading || lpinInput.length < 4} className="bg-primary text-primary-foreground hover:bg-primary/90 h-11 shrink-0">
+                  Reset PIN
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Resets the PIN the user signs in with. They are notified of the change.</p>
             </form>
           </div>
 

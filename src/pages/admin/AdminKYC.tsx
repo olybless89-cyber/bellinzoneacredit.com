@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
+import { notify } from '@/services/api';
 import { CheckCircle, XCircle, Eye, Filter, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +26,23 @@ export default function AdminKYC() {
   const [selected, setSelected] = useState<KycWithProfile | null>(null);
   const [notes, setNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<{ front: string | null; back: string | null }>({ front: null, back: null });
+
+  // The kyc_documents bucket is private — stored values are storage paths,
+  // so they must be exchanged for signed URLs before rendering.
+  const openDoc = async (doc: KycWithProfile) => {
+    setSelected(doc);
+    setNotes(doc.notes || '');
+    setSignedUrls({ front: null, back: null });
+    const sign = async (path: string | null) => {
+      if (!path) return null;
+      if (/^https?:\/\//.test(path)) return path;
+      const { data } = await supabase.storage.from('kyc_documents').createSignedUrl(path, 3600);
+      return data?.signedUrl || null;
+    };
+    const [front, back] = await Promise.all([sign(doc.front_url), sign(doc.back_url)]);
+    setSignedUrls({ front, back });
+  };
 
   const loadDocs = useCallback(async () => {
     let query = supabase
@@ -56,10 +74,18 @@ export default function AdminKYC() {
     setActionLoading(true);
     const { error } = await supabase
       .from('kyc_documents')
-      .update({ status, admin_notes: notes, updated_at: new Date().toISOString() })
+      .update({ status, notes, updated_at: new Date().toISOString() })
       .eq('id', doc.id);
 
-    if (error) { toast.error('Failed to update KYC'); setActionLoading(false); return; }
+    if (error) { toast.error(`Failed to update KYC: ${error.message}`); setActionLoading(false); return; }
+
+    notify(doc.user_id, {
+      title: status === 'approved' ? 'KYC approved' : 'KYC rejected',
+      body: status === 'approved'
+        ? 'Your identity verification has been approved. Your account is now fully verified.'
+        : `Your identity verification was rejected.${notes ? ` Reason: ${notes}` : ''} Please resubmit your documents.`,
+      type: status === 'approved' ? 'success' : 'warning',
+    });
 
     // Send KYC email if user has email
     const email = doc.profile?.email;
@@ -161,7 +187,7 @@ export default function AdminKYC() {
                           size="sm"
                           variant="ghost"
                           className="border border-border text-xs h-8 px-3"
-                          onClick={() => { setSelected(doc); setNotes(doc.admin_notes || ''); }}
+                          onClick={() => openDoc(doc)}
                         >
                           <Eye className="w-3 h-3 mr-1" /> Review
                         </Button>
@@ -204,24 +230,28 @@ export default function AdminKYC() {
 
               {/* Document images */}
               <div className="grid grid-cols-2 gap-3">
-                {[['Front', selected.front_url], ['Back', selected.back_url]].map(([side, url]) => (
-                  <div key={side as string}>
-                    <div className="text-xs font-semibold text-muted-foreground mb-2">ID {side}</div>
-                    {url ? (
-                      <div className="relative aspect-[3/2] rounded-xl overflow-hidden bg-muted border border-border group">
-                        <img src={url as string} alt={`ID ${side}`} className="w-full h-full object-cover" />
-                        <a href={url as string} target="_blank" rel="noopener noreferrer"
-                          className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ExternalLink className="w-6 h-6 text-white" />
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="aspect-[3/2] rounded-xl bg-muted border border-dashed border-border flex items-center justify-center text-muted-foreground text-xs">
-                        No document
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {([['Front', 'front'], ['Back', 'back']] as const).map(([side, key]) => {
+                  const url = signedUrls[key];
+                  const hasDoc = key === 'front' ? !!selected.front_url : !!selected.back_url;
+                  return (
+                    <div key={side}>
+                      <div className="text-xs font-semibold text-muted-foreground mb-2">ID {side}</div>
+                      {url ? (
+                        <div className="relative aspect-[3/2] rounded-xl overflow-hidden bg-muted border border-border group">
+                          <img src={url} alt={`ID ${side}`} className="w-full h-full object-cover" />
+                          <a href={url} target="_blank" rel="noopener noreferrer"
+                            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ExternalLink className="w-6 h-6 text-white" />
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="aspect-[3/2] rounded-xl bg-muted border border-dashed border-border flex items-center justify-center text-muted-foreground text-xs">
+                          {hasDoc ? 'Loading…' : 'No document'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Admin notes */}
