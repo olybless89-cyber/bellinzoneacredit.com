@@ -511,6 +511,49 @@ export async function setUserTransfersBlocked(userId: string, blocked: boolean):
   });
 }
 
+// ─── Transfer PIN & COT code ─────────────────────────────────────────────────
+
+export async function setUserTransferPin(userId: string, pin: string): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ transfer_pin: pin })
+    .eq('id', userId);
+  if (error) {
+    if (isMissingSchemaError(error)) throw new Error('Database migration 00009 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    throw error;
+  }
+  notify(userId, {
+    title: 'Transfer PIN updated',
+    body: 'Your transfer PIN was set or changed. If this was not you, contact support immediately.',
+    type: 'security',
+  });
+}
+
+export function generateCotCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+export async function setUserCotCode(userId: string, cot: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ cot_code: cot })
+    .eq('id', userId);
+  if (error) {
+    if (isMissingSchemaError(error)) throw new Error('Database migration 00009 has not been applied yet. Run it in the Supabase SQL Editor first.');
+    throw error;
+  }
+  if (cot) {
+    notify(userId, {
+      title: 'COT code issued',
+      body: 'A Cost of Transfer (COT) code has been issued for your account. Check Secure Mail for details — you will need it to complete transfers.',
+      type: 'security',
+    });
+  }
+}
+
 export async function getTransferBlockStatus(userId?: string): Promise<{ blocked: boolean; reason: string | null }> {
   const globalBlocked = await getGlobalTransfersBlocked();
   if (globalBlocked) {

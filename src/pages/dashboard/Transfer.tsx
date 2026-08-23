@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Ban, Eye, EyeOff, Info, Landmark, ShieldCheck } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowUpRight, Ban, Eye, EyeOff, Info, KeyRound, Landmark, MailWarning, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
-import { getTransferBlockStatus, getUserAccounts, notify, transferFunds } from '@/services/api';
+import { getTransferBlockStatus, getUserAccounts, notify, setUserTransferPin, transferFunds } from '@/services/api';
 import type { BankAccount, TransferMethod } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type Stage = 'form' | 'confirm' | 'pin';
+type Stage = 'form' | 'confirm' | 'pin' | 'tpin' | 'cot';
 
 const METHODS: { value: TransferMethod; label: string; eta: string; fee: number }[] = [
   { value: 'internal', label: 'Internal Transfer (within Bellinzone A Credit)', eta: 'Instant', fee: 0 },
@@ -19,8 +19,54 @@ const METHODS: { value: TransferMethod; label: string; eta: string; fee: number 
   { value: 'international', label: 'International Wire (SWIFT)', eta: '1–5 business days', fee: 25 },
 ];
 
+function PinBoxes({
+  pin, setPin, show, error, autoFocus,
+}: {
+  pin: string[];
+  setPin: (p: string[]) => void;
+  show: boolean;
+  error: string;
+  autoFocus?: boolean;
+}) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    if (autoFocus) setTimeout(() => refs.current[0]?.focus(), 100);
+  }, [autoFocus]);
+
+  return (
+    <div className="flex gap-4 justify-center mb-2">
+      {pin.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => { refs.current[i] = el; }}
+          type={show ? 'text' : 'password'}
+          maxLength={1}
+          value={d}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (!/^\d?$/.test(val)) return;
+            const next = [...pin]; next[i] = val; setPin(next);
+            if (val && i < 3) refs.current[i + 1]?.focus();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Backspace' && !pin[i] && i > 0) refs.current[i - 1]?.focus();
+          }}
+          className={cn(
+            'w-14 h-16 rounded-xl border-2 text-center text-2xl font-bold bg-white text-foreground outline-none transition-all shadow-sm',
+            d ? 'border-primary' : 'border-border',
+            'focus:border-primary focus:ring-2 focus:ring-primary/20',
+            error && 'border-destructive'
+          )}
+          inputMode="numeric"
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function TransferPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -38,11 +84,20 @@ export default function TransferPage() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
-  // PIN state
+  // Login PIN state
   const [pin, setPin] = useState(['', '', '', '']);
   const [showPin, setShowPin] = useState(false);
   const [pinError, setPinError] = useState('');
-  const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Transfer PIN state (create mode when the user has none set)
+  const [tpin, setTpin] = useState(['', '', '', '']);
+  const [tpinConfirm, setTpinConfirm] = useState(['', '', '', '']);
+  const [showTpin, setShowTpin] = useState(false);
+  const [tpinError, setTpinError] = useState('');
+
+  // COT state
+  const [cot, setCot] = useState('');
+  const [cotError, setCotError] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -62,6 +117,7 @@ export default function TransferPage() {
   const totalDebit = amountNum + fee;
   const routingRequired = method === 'ach' || method === 'wire';
   const needsBankDetails = method !== 'internal';
+  const hasTransferPin = !!profile?.transfer_pin;
 
   const routingValid = !routingRequired || /^\d{9}$/.test(routingNumber.trim());
   const detailsValid =
@@ -79,16 +135,6 @@ export default function TransferPage() {
     fromAccount &&
     totalDebit <= fromAccount.balance;
 
-  const handlePinChange = (i: number, val: string) => {
-    if (!/^\d?$/.test(val)) return;
-    const next = [...pin]; next[i] = val; setPin(next);
-    if (val && i < 3) pinRefs.current[i + 1]?.focus();
-  };
-
-  const handlePinKeyDown = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !pin[i] && i > 0) pinRefs.current[i - 1]?.focus();
-  };
-
   // Step 1: form → confirm
   const handleReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,26 +150,82 @@ export default function TransferPage() {
     setStage('confirm');
   };
 
-  // Step 2: confirm → pin
-  const handleConfirm = () => {
-    setStage('pin');
-    setTimeout(() => pinRefs.current[0]?.focus(), 100);
-  };
+  // Step 2: confirm → login PIN
+  const handleConfirm = () => setStage('pin');
 
-  // Step 3: verify login PIN → execute transfer (no COT code, no separate transfer PIN)
-  const handlePinSubmit = async (e: React.FormEvent) => {
+  // Step 3: verify login PIN → transfer PIN stage
+  const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const enteredPin = pin.join('');
     if (enteredPin.length < 4) { setPinError('Enter your 4-digit PIN'); return; }
 
     if (profile?.login_pin !== enteredPin) {
-      setPinError('Incorrect PIN. Please try again.');
+      setPinError('Incorrect login PIN. Please try again.');
       setPin(['', '', '', '']);
-      pinRefs.current[0]?.focus();
+      return;
+    }
+    setPinError('');
+    setStage('tpin');
+  };
+
+  // Step 4: transfer PIN — verify existing, or create one on first use → COT stage
+  const handleTpinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    const entered = tpin.join('');
+    if (entered.length < 4) { setTpinError('Enter your 4-digit transfer PIN'); return; }
+
+    if (hasTransferPin) {
+      if (profile?.transfer_pin !== entered) {
+        setTpinError('Incorrect transfer PIN. Please try again.');
+        setTpin(['', '', '', '']);
+        return;
+      }
+    } else {
+      const confirm = tpinConfirm.join('');
+      if (confirm.length < 4) { setTpinError('Confirm your new transfer PIN'); return; }
+      if (entered !== confirm) {
+        setTpinError('PINs do not match. Try again.');
+        setTpin(['', '', '', '']);
+        setTpinConfirm(['', '', '', '']);
+        return;
+      }
+      if (entered === profile?.login_pin) {
+        setTpinError('Transfer PIN must be different from your login PIN.');
+        setTpin(['', '', '', '']);
+        setTpinConfirm(['', '', '', '']);
+        return;
+      }
+      try {
+        await setUserTransferPin(user.id, entered);
+        await refreshProfile();
+        toast.success('Transfer PIN created');
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : 'Failed to save transfer PIN');
+        return;
+      }
+    }
+    setTpinError('');
+    setStage('cot');
+  };
+
+  // Step 5: verify COT code → execute transfer
+  const handleCotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const enteredCot = cot.trim().toUpperCase();
+    if (!enteredCot) { setCotError('Enter your COT code'); return; }
+
+    if (!profile?.cot_code) {
+      setCotError('No COT code has been issued for your account yet. Request one from support via Secure Mail.');
+      return;
+    }
+    if (profile.cot_code.trim().toUpperCase() !== enteredCot) {
+      setCotError('Invalid COT code. Check the code sent by the bank and try again.');
+      setCot('');
       return;
     }
 
-    setPinError('');
+    setCotError('');
     setSubmitting(true);
     try {
       await transferFunds({
@@ -165,11 +267,29 @@ export default function TransferPage() {
   const labelCls = 'block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2';
   const inputCls = 'bg-white border-border shadow-sm h-12';
 
+  const stepIndex = { form: 1, confirm: 2, pin: 3, tpin: 3, cot: 3 }[stage];
+
   return (
     <div className="max-w-xl space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold text-foreground">Fund Transfer</h1>
-        <p className="text-muted-foreground text-sm mt-1">Send money securely to any bank account — verified with your login PIN</p>
+        <p className="text-muted-foreground text-sm mt-1">Send money securely — verified with your login PIN, transfer PIN and COT code</p>
+      </div>
+
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 text-xs font-semibold">
+        {['Details', 'Review', 'Verify & Send'].map((label, i) => (
+          <div key={label} className="flex items-center gap-2">
+            <span className={cn(
+              'w-6 h-6 rounded-full flex items-center justify-center border',
+              stepIndex > i ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'
+            )}>
+              {i + 1}
+            </span>
+            <span className={stepIndex > i ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+            {i < 2 && <span className="w-6 h-px bg-border" />}
+          </div>
+        ))}
       </div>
 
       {blockReason && (
@@ -296,10 +416,7 @@ export default function TransferPage() {
           {/* ── STAGE 2: Confirm ── */}
           {stage === 'confirm' && (
             <div className="glass-card rounded-2xl p-8 border border-border space-y-6">
-              <div className="text-center">
-                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <ArrowUpRight className="w-7 h-7 text-primary" />
-                </div>
+              <div>
                 <h2 className="text-xl font-extrabold text-foreground">Review Transfer</h2>
                 <p className="text-muted-foreground text-sm mt-1">Please confirm the beneficiary details before proceeding</p>
               </div>
@@ -370,7 +487,7 @@ export default function TransferPage() {
               <div className="flex flex-col gap-3">
                 <Button onClick={handleConfirm} className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 text-base">
                   <ShieldCheck className="w-4 h-4 mr-2" />
-                  Proceed — Enter Login PIN
+                  Proceed to Verification
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setStage('form')} className="w-full border border-border text-muted-foreground">
                   ← Edit Details
@@ -379,7 +496,7 @@ export default function TransferPage() {
             </div>
           )}
 
-          {/* ── STAGE 3: Login PIN verification (no COT / transfer PIN required) ── */}
+          {/* ── STAGE 3a: Login PIN ── */}
           {stage === 'pin' && (
             <form onSubmit={handlePinSubmit} className="glass-card rounded-2xl p-8 border border-border space-y-6 text-center">
               <div>
@@ -388,7 +505,7 @@ export default function TransferPage() {
                 </div>
                 <h2 className="text-xl font-extrabold text-foreground">Verify Your Login PIN</h2>
                 <p className="text-muted-foreground text-sm mt-1">
-                  Enter your 4-digit login PIN to send{' '}
+                  Step 1 of 3 — enter your 4-digit login PIN to send{' '}
                   <span className="font-semibold text-foreground">
                     {fromAccount?.currency} {amountNum.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>{' '}
@@ -397,26 +514,7 @@ export default function TransferPage() {
               </div>
 
               <div>
-                <div className="flex gap-4 justify-center mb-2">
-                  {pin.map((d, i) => (
-                    <input
-                      key={i}
-                      ref={(el) => { pinRefs.current[i] = el; }}
-                      type={showPin ? 'text' : 'password'}
-                      maxLength={1}
-                      value={d}
-                      onChange={(e) => handlePinChange(i, e.target.value)}
-                      onKeyDown={(e) => handlePinKeyDown(i, e)}
-                      className={cn(
-                        'w-14 h-16 rounded-xl border-2 text-center text-2xl font-bold bg-white text-foreground outline-none transition-all shadow-sm',
-                        d ? 'border-primary' : 'border-border',
-                        'focus:border-primary focus:ring-2 focus:ring-primary/20',
-                        pinError && 'border-destructive'
-                      )}
-                      inputMode="numeric"
-                    />
-                  ))}
-                </div>
+                <PinBoxes pin={pin} setPin={setPin} show={showPin} error={pinError} autoFocus />
                 <button type="button" onClick={() => setShowPin(!showPin)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary mx-auto transition-colors mt-2">
                   {showPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                   {showPin ? 'Hide' : 'Show'} PIN
@@ -425,10 +523,119 @@ export default function TransferPage() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <Button type="submit" disabled={submitting || pin.join('').length < 4} className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 text-base">
-                  {submitting ? 'Processing...' : 'Confirm & Send'}
+                <Button type="submit" disabled={pin.join('').length < 4} className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 text-base">
+                  Continue
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => { setStage('confirm'); setPin(['', '', '', '']); setPinError(''); }} className="w-full border border-border text-muted-foreground">
+                  ← Back
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {/* ── STAGE 3b: Transfer PIN ── */}
+          {stage === 'tpin' && (
+            <form onSubmit={handleTpinSubmit} className="glass-card rounded-2xl p-8 border border-border space-y-6 text-center">
+              <div>
+                <div className="w-14 h-14 rounded-full bg-primary/10 border-4 border-primary/30 flex items-center justify-center mx-auto mb-4">
+                  <KeyRound className="w-7 h-7 text-primary" />
+                </div>
+                <h2 className="text-xl font-extrabold text-foreground">
+                  {hasTransferPin ? 'Enter Your Transfer PIN' : 'Create Your Transfer PIN'}
+                </h2>
+                <p className="text-muted-foreground text-sm mt-1">
+                  {hasTransferPin
+                    ? 'Step 2 of 3 — enter the 4-digit transfer PIN for this account'
+                    : 'Step 2 of 3 — set a 4-digit transfer PIN (different from your login PIN). You will use it to authorize all future transfers.'}
+                </p>
+              </div>
+
+              <div>
+                {!hasTransferPin && (
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">New Transfer PIN</p>
+                )}
+                <PinBoxes pin={tpin} setPin={setTpin} show={showTpin} error={tpinError} autoFocus />
+                {!hasTransferPin && (
+                  <>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 mt-4">Confirm Transfer PIN</p>
+                    <PinBoxes pin={tpinConfirm} setPin={setTpinConfirm} show={showTpin} error={tpinError} />
+                  </>
+                )}
+                <button type="button" onClick={() => setShowTpin(!showTpin)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary mx-auto transition-colors mt-2">
+                  {showTpin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {showTpin ? 'Hide' : 'Show'} PIN
+                </button>
+                {tpinError && <p className="text-xs text-destructive mt-2">{tpinError}</p>}
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Button
+                  type="submit"
+                  disabled={tpin.join('').length < 4 || (!hasTransferPin && tpinConfirm.join('').length < 4)}
+                  className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 text-base"
+                >
+                  Continue
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => { setStage('pin'); setTpin(['', '', '', '']); setTpinConfirm(['', '', '', '']); setTpinError(''); }} className="w-full border border-border text-muted-foreground">
+                  ← Back
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {/* ── STAGE 3c: COT code ── */}
+          {stage === 'cot' && (
+            <form onSubmit={handleCotSubmit} className="glass-card rounded-2xl p-8 border border-border space-y-6 text-center">
+              <div>
+                <div className="w-14 h-14 rounded-full bg-primary/10 border-4 border-primary/30 flex items-center justify-center mx-auto mb-4">
+                  <MailWarning className="w-7 h-7 text-primary" />
+                </div>
+                <h2 className="text-xl font-extrabold text-foreground">Cost of Transfer (COT) Code</h2>
+                <p className="text-muted-foreground text-sm mt-1">
+                  Step 3 of 3 — enter the COT code issued by the bank to authorize this transfer of{' '}
+                  <span className="font-semibold text-foreground">
+                    {fromAccount?.currency} {totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                </p>
+              </div>
+
+              {profile?.cot_code ? (
+                <div>
+                  <Input
+                    placeholder="e.g. X7K9P2QD"
+                    value={cot}
+                    onChange={(e) => { setCot(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)); setCotError(''); }}
+                    className="bg-white border-border shadow-sm h-14 text-center text-xl font-mono tracking-[0.3em] font-bold max-w-xs mx-auto"
+                    autoFocus
+                  />
+                  {cotError && <p className="text-xs text-destructive mt-2">{cotError}</p>}
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Your COT code was sent to you via Secure Mail.{' '}
+                    <Link to="/dashboard/messages" className="text-primary font-semibold hover:underline">Open Secure Mail</Link>
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-5 text-left space-y-3">
+                  <p className="text-sm text-foreground font-semibold">No COT code issued yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    A Cost of Transfer code is required to complete outgoing transfers. Request your COT code from
+                    customer support — it will be delivered to you via Secure Mail.
+                  </p>
+                  <Link to="/dashboard/messages">
+                    <Button type="button" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                      Request COT Code via Secure Mail
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                {profile?.cot_code && (
+                  <Button type="submit" disabled={submitting || !cot.trim()} className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 text-base">
+                    {submitting ? 'Processing...' : 'Confirm & Send'}
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" onClick={() => { setStage('tpin'); setCot(''); setCotError(''); }} className="w-full border border-border text-muted-foreground">
                   ← Back
                 </Button>
               </div>

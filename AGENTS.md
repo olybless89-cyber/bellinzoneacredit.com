@@ -43,11 +43,13 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - Verified on new backend: admin login → dashboard loads; sign-in notification written to `notifications` (bell shows unread).
 - AuthContext hardened: `onAuthStateChange` no longer awaits Supabase calls (client-internal lock would deadlock); session+profile hydrate in a deferred handler. Fixes login redirect race on hard refresh.
 - 42P17 profile-policy recursion FIXED — combined 00007+00008 script applied in SQL Editor (2026-08-23). Admin portal verified working: login → /admin loads (Overview metrics, Transfer Controls, Secure Mail, notification bell).
-- All migrations applied (00001–00008). All tables return 200 on REST API.
+- Migrations 00001–00008 applied. **00009 (transfer_pin + cot_code) written but NOT yet applied** — needs manual run in SQL Editor (3 lines). App degrades gracefully until then with a clear toast.
 - Build clean (`vite build`), `tsgo` passes.
 
 ## Feature model (added 2026-08-23)
-- **Transfers**: full beneficiary form (name, account/IBAN, bank, routing (9-digit ABA), SWIFT for international), 4 methods (internal/ACH/wire/international) with fees + ETA, review screen, login-PIN verification only (NO COT code, NO separate transfer PIN). Details stored in `transactions.metadata` jsonb (works without migration).
+- **Transfers**: full beneficiary form (name, account/IBAN, bank, routing (9-digit ABA), SWIFT for international), 4 methods (internal/ACH/wire/international) with fees + ETA, review screen, 3-step verification: login PIN → transfer PIN → COT code. Details stored in `transactions.metadata` jsonb.
+- **Transfer PIN** (`profiles.transfer_pin`, migration 00009): user-managed 4-digit PIN, created inline on first transfer or changed in Profile → Security (verified by login PIN). Must differ from login PIN. Admin can reset in AdminUsers "Security Codes" dialog.
+- **COT code** (`profiles.cot_code`, migration 00009): admin-issued per user (AdminUsers → "Issue COT" → generate/save → "Send via Mail" delivers through built-in Secure Mail + notification). Transfer CANNOT complete without it; user sees request-COT prompt when none issued.
 - **Transfer blocks**: per-user `profiles.transfers_blocked` flag + global `site_settings.transfers_blocked` (admin toggle in AdminOverview "Transfer Controls" card; per-user button in AdminUsers). Checked in `transferFunds` + Transfer page UI.
 - **Built-in mail** (`messages` table): user page `/dashboard/messages` (compose goes to all admins via `public_profiles` view), admin page `/admin/messages` (recipient picker + broadcast-to-all; `/admin/messages?to=<userId>` preselects). No external email provider.
 - **Notifications** (`notifications` table): bell (`NotificationBell`) in DashboardLayout + AdminLayout headers, 20s polling. Fired on: sign-in, deposit, withdrawal, transfer sent/received, admin credit, card status change, new message, transfer block/unblock. All notification writes are best-effort and silently no-op if the table is missing.

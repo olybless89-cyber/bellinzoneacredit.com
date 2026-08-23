@@ -1,14 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
-import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle, ArrowLeftRight } from 'lucide-react';
+import { Search, UserCog, Ban, CheckCircle, Mail, ChevronDown, ChevronUp, PlusCircle, ArrowLeftRight, KeyRound, RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { Profile, BankAccount } from '@/types';
-import { adminCreditAccount, setUserTransfersBlocked } from '@/services/api';
+import { adminCreditAccount, generateCotCode, sendMailMessage, setUserCotCode, setUserTransfersBlocked, setUserTransferPin } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UserWithAccounts extends Profile {
   account_count: number;
@@ -17,12 +18,78 @@ interface UserWithAccounts extends Profile {
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { user: adminUser } = useAuth();
   const [users, setUsers] = useState<UserWithAccounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortField, setSortField] = useState<'created_at' | 'first_name'>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Security codes (COT / transfer PIN) dialog state
+  const [codesUser, setCodesUser] = useState<UserWithAccounts | null>(null);
+  const [cotInput, setCotInput] = useState('');
+  const [tpinInput, setTpinInput] = useState('');
+  const [codesLoading, setCodesLoading] = useState(false);
+
+  const openCodes = (u: UserWithAccounts) => {
+    setCodesUser(u);
+    setCotInput(u.cot_code || '');
+    setTpinInput('');
+  };
+
+  const saveCot = async (code: string) => {
+    if (!codesUser) return;
+    if (!/^[A-Z0-9]{6,12}$/.test(code)) { toast.error('COT code must be 6–12 letters/digits'); return; }
+    setCodesLoading(true);
+    try {
+      await setUserCotCode(codesUser.id, code);
+      setCodesUser({ ...codesUser, cot_code: code });
+      toast.success(`COT code saved for ${codesUser.first_name || codesUser.username || codesUser.email}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save COT code');
+    } finally {
+      setCodesLoading(false);
+    }
+  };
+
+  const sendCotByMail = async () => {
+    if (!codesUser || !adminUser) return;
+    const code = codesUser.cot_code;
+    if (!code) { toast.error('Save a COT code first'); return; }
+    setCodesLoading(true);
+    try {
+      const name = codesUser.first_name || codesUser.username || 'Customer';
+      await sendMailMessage({
+        senderId: adminUser.id,
+        recipientId: codesUser.id,
+        subject: 'Your Cost of Transfer (COT) Code',
+        body: `Dear ${name},\n\nYour Cost of Transfer (COT) code is: ${code}\n\nYou will need this code to authorize outgoing transfers from your account. Keep it confidential and do not share it with anyone.\n\nIf you did not request this code, please contact support immediately.\n\n— Bellinzone A Credit Support`,
+      });
+      toast.success('COT code sent via Secure Mail');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send COT code');
+    } finally {
+      setCodesLoading(false);
+    }
+  };
+
+  const resetTransferPin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!codesUser) return;
+    if (!/^\d{4}$/.test(tpinInput)) { toast.error('Transfer PIN must be exactly 4 digits'); return; }
+    setCodesLoading(true);
+    try {
+      await setUserTransferPin(codesUser.id, tpinInput);
+      setCodesUser({ ...codesUser, transfer_pin: tpinInput });
+      setTpinInput('');
+      toast.success('Transfer PIN reset');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset transfer PIN');
+    } finally {
+      setCodesLoading(false);
+    }
+  };
 
   // Add-balance dialog state
   const [creditUser, setCreditUser] = useState<UserWithAccounts | null>(null);
@@ -236,6 +303,14 @@ export default function AdminUsers() {
                           >
                             <Mail className="w-3 h-3 mr-1" />Message
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={`border text-xs h-8 px-2 ${u.cot_code ? 'border-green-600/40 text-green-700 hover:bg-green-600/10' : 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10'}`}
+                            onClick={() => openCodes(u)}
+                          >
+                            <KeyRound className="w-3 h-3 mr-1" />{u.cot_code ? 'COT Issued' : 'Issue COT'}
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -291,6 +366,76 @@ export default function AdminUsers() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Security Codes dialog (COT + transfer PIN) */}
+      <Dialog open={!!codesUser} onOpenChange={(open) => !open && setCodesUser(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Security Codes — {codesUser?.first_name || codesUser?.username || 'User'}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* COT code */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">COT Code (required for transfers)</label>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${codesUser?.cot_code ? 'bg-green-600/10 text-green-700' : 'bg-muted text-muted-foreground'}`}>
+                  {codesUser?.cot_code ? 'Issued' : 'Not issued'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={cotInput}
+                  onChange={(e) => setCotInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
+                  placeholder="e.g. X7K9P2QD"
+                  className="bg-white border-border h-11 font-mono tracking-[0.2em]"
+                />
+                <Button type="button" variant="ghost" onClick={() => setCotInput(generateCotCode())} disabled={codesLoading} className="border border-border h-11 shrink-0" title="Generate random code">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" onClick={() => saveCot(cotInput)} disabled={codesLoading || !cotInput} className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 flex-1">
+                  {codesLoading ? 'Saving...' : 'Save COT Code'}
+                </Button>
+                <Button type="button" onClick={sendCotByMail} disabled={codesLoading || !codesUser?.cot_code} className="border border-primary/30 text-primary hover:bg-primary/10 h-10 flex-1" variant="ghost">
+                  <Send className="w-3.5 h-3.5 mr-1.5" />Send via Mail
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Save the code, then send it to the user through the built-in Secure Mail.</p>
+            </div>
+
+            {/* Transfer PIN reset */}
+            <form onSubmit={resetTransferPin} className="space-y-3 pt-4 border-t border-border">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transfer PIN</label>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${codesUser?.transfer_pin ? 'bg-green-600/10 text-green-700' : 'bg-muted text-muted-foreground'}`}>
+                  {codesUser?.transfer_pin ? 'Set' : 'Not set'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={tpinInput}
+                  onChange={(e) => setTpinInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="New 4-digit PIN"
+                  className="bg-white border-border h-11 text-center tracking-[0.3em]"
+                />
+                <Button type="submit" disabled={codesLoading || tpinInput.length < 4} className="bg-primary text-primary-foreground hover:bg-primary/90 h-11 shrink-0">
+                  Reset PIN
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">The user is notified by notification whenever their transfer PIN changes.</p>
+            </form>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => { setCodesUser(null); loadUsers(); }} className="border border-border">Done</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
