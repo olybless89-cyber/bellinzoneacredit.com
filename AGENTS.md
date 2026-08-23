@@ -82,3 +82,10 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - **Login.tsx**: "Email not confirmed" sign-in errors (legacy unconfirmed accounts) now show a clear message pointing at migration 00011.
 - Live check: `GET /auth/v1/settings` showed `mailer_autoconfirm: false` (toggle still ON). **Disabling the toggle is REQUIRED, not optional**: with it ON, signUp sends a confirmation email and hard-fails with 429 `over_email_send_rate_limit` once the tiny built-in SMTP quota is hit (user NOT created — verified live). Migration 00011 removes the confirmation *gate* (login works, existing users backfilled); the toggle removes the *email sending* (no 429s, no useless emails). Register.tsx maps both errors to clear admin-action toasts.
 - **00011 APPLIED in SQL Editor (2026-08-23)** — auto-confirm trigger + backfill live on `fjrobpbmvjsjgfucoyht`. Remaining manual step: disable Auth → Providers → Email → "Confirm email" toggle (stops confirmation emails / 429 rate-limit).
+
+## Update (2026-08-23e) — KYC-not-showing-in-admin investigation
+- **Root cause**: submissions made BEFORE the 00011/deploy fix were silently dropped — old Register flow had no session (Confirm email ON) → RLS blocked the kyc_documents insert → nothing reached the DB. NOT an admin-side bug.
+- **Verified live end-to-end (REST, as fresh user + admin)**: signup→instant session ✅, storage upload to kyc_documents bucket ✅, kyc_documents insert (status pending) ✅, admin SELECT sees the pending row ✅. Pipeline fully works post-fix; affected users just resubmit from Profile → Identity Verification.
+- AdminKYC now surfaces query errors with a toast (was: silent empty list on error).
+- **Migration 00010 NOT live**: `admin_delete_user` rpc returns PGRST202 (not in schema cache) — needs SQL Editor apply + `NOTIFY pgrst, 'reload schema';`. Admin Delete User button won't work until then.
+- Storage: no admin DELETE policy on storage.objects (admin delete of KYC files is 403 via REST; security-definer functions bypass this). Orphaned files are harmless.

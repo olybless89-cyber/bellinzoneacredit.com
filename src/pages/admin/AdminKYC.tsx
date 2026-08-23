@@ -51,7 +51,12 @@ export default function AdminKYC() {
       .order('created_at', { ascending: false });
     if (filter !== 'all') query = query.eq('status', filter);
 
-    const { data: kycDocs } = await query;
+    const { data: kycDocs, error } = await query;
+    if (error) {
+      toast.error(`Failed to load KYC submissions: ${error.message}`);
+      setLoading(false);
+      return;
+    }
     if (!kycDocs) { setLoading(false); return; }
 
     const enriched = await Promise.all(
