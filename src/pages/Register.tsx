@@ -64,7 +64,10 @@ export default function RegisterPage() {
     if (!form.email) { toast.error('Email is required.'); return; }
     setLoading(true);
     try {
-      // Use real email address for auth; PIN is the password
+      // Use real email address for auth; PIN is the password.
+      // No email verification anywhere: signUp returns a session directly when
+      // autoconfirm is on; otherwise the 00011 auto-confirm trigger lets us
+      // sign in immediately afterwards.
       const { data: authData, error: signUpErr } = await supabase.auth.signUp({
         email: form.email,
         password: PIN_SECRET,
@@ -78,21 +81,21 @@ export default function RegisterPage() {
             country: form.country,
             login_pin: form.login_pin,
           },
-          emailRedirectTo: 'https://bellinzonacredit.com/dashboard',
         },
       });
       if (signUpErr) throw signUpErr;
 
-      if (authData.user && !authData.session) {
-        // Email confirmation is still enabled on the Supabase project — the
-        // signup succeeded but there is no session, so RLS would silently
-        // block profile/account/KYC writes. Tell the user what to do.
-        toast.warning('Account created, but email confirmation is still enabled on the server. Ask the admin to disable "Confirm email" in Supabase, then sign in and complete your profile & KYC from the dashboard.', { duration: 10000 });
-        navigate('/login');
-        return;
+      let userId = authData.user?.id ?? null;
+      if (userId && !authData.session) {
+        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: PIN_SECRET,
+        });
+        if (signInErr) throw signInErr;
+        userId = signInData.user?.id ?? userId;
       }
 
-      if (authData.user) {
+      if (userId) {
         // Update profile with full contact info + username
         const { error: profileErr } = await supabase.from('profiles').update({
           email: form.email,
@@ -104,12 +107,12 @@ export default function RegisterPage() {
           dob: form.dob,
           country: form.country,
           login_pin: form.login_pin,
-        }).eq('id', authData.user.id);
+        }).eq('id', userId);
         if (profileErr) throw profileErr;
 
         // Create bank account
         const { data: newAccount, error: accountErr } = await supabase.from('bank_accounts').insert({
-          user_id: authData.user.id,
+          user_id: userId,
           account_type: form.account_type,
           currency: form.currency,
           branch: form.branch,
@@ -121,7 +124,7 @@ export default function RegisterPage() {
         // KYC upload — surfaced, not silent
         if (frontFile || backFile) {
           try {
-            await uploadKyc(authData.user.id);
+            await uploadKyc(userId);
           } catch {
             toast.warning('Account created, but your ID documents could not be uploaded. After signing in, resubmit them from Profile → Identity Verification.', { duration: 8000 });
           }
@@ -132,7 +135,7 @@ export default function RegisterPage() {
           body: {
             type: 'welcome',
             to: form.email,
-            user_id: authData.user.id,
+            user_id: userId,
             data: {
               first_name: form.fname,
               username: form.username,
@@ -141,12 +144,16 @@ export default function RegisterPage() {
           },
         }).catch(() => null);
       }
-      toast.success('Account created! Sign in with your email and 4-digit PIN.');
-      navigate('/login');
+      toast.success('Account created — welcome to Bellinzona Credit Union!');
+      navigate('/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Registration failed';
       if (msg.includes('already registered') || msg.includes('already taken')) {
         toast.error('Email or username already registered. Please use different credentials.');
+      } else if (msg.toLowerCase().includes('email not confirmed')) {
+        toast.error('Server still requires email confirmation. The admin must apply migration 00011 or disable "Confirm email" in Supabase Auth settings.', { duration: 10000 });
+      } else if (msg.includes('over_email_send_rate_limit') || msg.includes('email rate limit')) {
+        toast.error('The server is still sending confirmation emails and hit its email rate limit. The admin must disable "Confirm email" in Supabase Auth → Providers → Email.', { duration: 10000 });
       } else {
         toast.error(msg);
       }

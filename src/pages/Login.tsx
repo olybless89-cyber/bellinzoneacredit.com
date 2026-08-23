@@ -80,7 +80,11 @@ export default function LoginPage() {
       navigate('/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
-      toast.error(msg.includes('Invalid') ? 'Incorrect credentials. Please try again.' : msg);
+      if (msg.toLowerCase().includes('email not confirmed')) {
+        toast.error('This account is pending email confirmation on the server. Ask the admin to apply migration 00011 (auto-confirm) in the SQL Editor.', { duration: 10000 });
+      } else {
+        toast.error(msg.includes('Invalid') ? 'Incorrect credentials. Please try again.' : msg);
+      }
       setPin(['', '', '', '']);
       pinRefs.current[0]?.focus();
     } finally {
