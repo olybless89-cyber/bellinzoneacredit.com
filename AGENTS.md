@@ -43,7 +43,7 @@ Rebranded to "Bellinzone A Credit" (account-number prefix `BAC`). Same full bank
 - Verified on new backend: admin login → dashboard loads; sign-in notification written to `notifications` (bell shows unread).
 - AuthContext hardened: `onAuthStateChange` no longer awaits Supabase calls (client-internal lock would deadlock); session+profile hydrate in a deferred handler. Fixes login redirect race on hard refresh.
 - 42P17 profile-policy recursion FIXED — combined 00007+00008 script applied in SQL Editor (2026-08-23). Admin portal verified working: login → /admin loads (Overview metrics, Transfer Controls, Secure Mail, notification bell).
-- Migrations 00001–00008 applied. **00009 (transfer_pin + cot_code) written but NOT yet applied** — needs manual run in SQL Editor (3 lines). App degrades gracefully until then with a clear toast.
+- All migrations applied (00001–00009). Full 3-step transfer chain verified end-to-end in browser (2026-08-23): login PIN → transfer PIN create/verify → admin-issued COT → transfer executed ($25, balance 5000→4975, txn recorded).
 - Build clean (`vite build`), `tsgo` passes.
 
 ## Feature model (added 2026-08-23)
